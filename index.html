@@ -1317,13 +1317,14 @@
         <div class="multi-code" id="multiLobbyCode">------</div>
         <div class="multi-status" id="multiStatus">Not connected. Create a lobby or enter a lobby code to join one.</div>
         <div class="multi-host-controls" id="multiHostControls">
-          <label style="font-size:12px;font-weight:700;color:var(--plum-dark);display:block;margin-bottom:6px;">Host challenge</label>
+          <label style="font-size:12px;font-weight:700;color:var(--plum-dark);display:block;margin-bottom:6px;">Host chooses a multiplayer game</label>
           <select id="multiChallengeSelect" class="multi-select">
-            <option value="collector">🍓 Collect 25 orbs first</option>
-            <option value="giant">🍄 Grow to size 2.5×</option>
-            <option value="hoarder">💎 Collect 50 total orbs</option>
-            <option value="survive">⏱️ Survive for 90 seconds</option>
-            <option value="score">🏆 Reach 100 arena points</option>
+            <option value="orb">🍓 Orb Rush</option>
+            <option value="score">🏆 Score Rush</option>
+            <option value="giant">🍄 Giant Gooby</option>
+            <option value="tag">🏷️ Gooby Tag</option>
+            <option value="crown">👑 Crown</option>
+            <option value="survival">⏱️ Survival</option>
           </select>
           <button class="btn btn-primary" id="multiStartBtn" style="width:100%;justify-content:center;margin-top:8px;">Start challenge</button>
           <div class="multi-waiting" id="multiWaiting">Invite friends with the code above. They can join before you start.</div>
@@ -1350,7 +1351,7 @@
             </div>
           </div>
         </div>
-        <div class="multi-help">Move your mouse/finger to steer. Collect glowing orbs to grow. Your username rides above your Gooby.</div>
+        <div class="multi-help">Move with WASD/arrow keys or steer toward where you point your mouse/finger. Collect food and power-ups, grow, and bump other real players. Your username rides above your Gooby. Real players connect through the lobby code — there are no bots.</div>
         <div class="multi-leaderboard" id="multiLeaderboard"></div>
       </section>
     </div>
@@ -2723,217 +2724,307 @@ function meshFinishScan(){
 }
 
 /* ============================================================
-   MULTIPLAYER (WebRTC / PeerJS)
+   MULTIPLAYER (WebRTC / PeerJS) — host-authoritative arena
    ============================================================ */
-let multi = {
-  peer:null, conns:new Map(), isHost:false, hostId:null, code:'', name:'Gooby',
-  players:new Map(), running:false, started:false, challenge:null, startedAt:0,
-  collectibles:[], lastBroadcast:0, lastInput:0, keys:{}, pointer:{x:0.5,y:0.5},
-  lastFrame:0, anim:null, world:{w:2400,h:1600}, winner:null
+let multi={
+  peer:null, hostConn:null, conns:new Map(), isHost:false, hostId:null, code:'', name:'Gooby',
+  players:new Map(), foods:[], powerups:[], started:false, running:false, challenge:null,
+  startedAt:0, winner:null, lastBroadcast:0, lastInputSent:0, keys:Object.create(null),
+  steer:{x:0,y:0}, lastFrame:0, anim:null, world:{w:2600,h:1800}, nextEntityId:1,
+  taggerId:null, crown:{x:1300,y:900,r:44,carrier:null}, statusTimer:null
 };
-const MULTI_CHALLENGES = {
-  collector:{label:'🍓 Collect 25 orbs first', target:25},
-  giant:{label:'🍄 Grow to size 2.5×', target:2.5},
-  hoarder:{label:'💎 Collect 50 total orbs', target:50},
-  survive:{label:'⏱️ Survive for 90 seconds', target:90},
-  score:{label:'🏆 Reach 100 arena points', target:100}
+
+const MULTI_CHALLENGES={
+  orb:{label:'🍓 ORB RUSH — first to 40 orbs',goal:40,desc:'Collect glowing food to reach the target first.'},
+  score:{label:'🏆 SCORE RUSH — first to 180 points',goal:180,desc:'Collect food and hunt for bonus items.'},
+  giant:{label:'🍄 GIANT GOOBY — reach 2.8× size',goal:2.8,desc:'Eat enough food to become the biggest Gooby.'},
+  tag:{label:'🏷️ GOOBY TAG — stay untagged and tag others',goal:75,desc:'One player starts as IT. Touch another Gooby to pass the tag.'},
+  crown:{label:'👑 CROWN — hold the crown for 35 seconds',goal:35,desc:'Carry the crown and keep it away from everyone else.'},
+  survival:{label:'⏱️ SURVIVAL — last 90 seconds',goal:90,desc:'Grow, collect, and survive the whole round.'}
 };
-function multiCode(){ return Math.random().toString(36).slice(2,8).toUpperCase(); }
+
+function multiCode(){return Math.random().toString(36).slice(2,8).toUpperCase();}
 function multiNameSafe(){
   const n=(document.getElementById('multiName').value||'Gooby').trim().replace(/[^a-zA-Z0-9 _-]/g,'').slice(0,16);
   return n||'Gooby';
 }
-function multiSetStatus(t){ document.getElementById('multiStatus').textContent=t; }
-function multiCanvas(){ return document.getElementById('multiCanvas'); }
-function multiCtx(){ return multiCanvas().getContext('2d'); }
+function multiSetStatus(t){
+  const el=document.getElementById('multiStatus'); if(el) el.textContent=t;
+  clearTimeout(multi.statusTimer); multi.statusTimer=setTimeout(()=>{if(multi.statusTimer){}},2600);
+}
+function multiCanvas(){return document.getElementById('multiCanvas');}
+function multiCtx(){const c=multiCanvas(); return c?c.getContext('2d'):null;}
 function multiResize(){
-  const c=multiCanvas(); const r=c.getBoundingClientRect(); const d=Math.min(2,window.devicePixelRatio||1);
+  const c=multiCanvas(); if(!c)return;
+  const r=c.getBoundingClientRect(),d=Math.min(2,window.devicePixelRatio||1);
   c.width=Math.max(640,Math.floor(r.width*d)); c.height=Math.max(420,Math.floor(r.height*d));
 }
-function multiHostIdFromCode(code){ return 'gooby-room-'+code.toLowerCase(); }
-function multiNewPlayer(id,name,isLocal){
-  return {id,name:name||'Gooby',x:400+Math.random()*1600,y:300+Math.random()*1000,r:44,score:0,orbs:0,alive:true,colorHue:Math.floor(Math.random()*360),isLocal:!!isLocal,last:Date.now()};
+function multiHostIdFromCode(code){return 'gooby-room-'+code.toLowerCase();}
+function multiSpawnPoint(){
+  return {x:120+Math.random()*(multi.world.w-240),y:120+Math.random()*(multi.world.h-240)};
 }
-function multiAddPlayer(p){ multi.players.set(p.id,p); multiRenderLobbyList(); }
-function multiRemovePlayer(id){ multi.players.delete(id); multiRenderLobbyList(); }
-function multiSend(conn,data){ try{ if(conn && conn.open) conn.send(data); }catch(e){} }
-function multiSendAll(data){ multi.conns.forEach(c=>multiSend(c,data)); }
+function multiNewPlayer(id,name,isLocal){
+  const p=multiSpawnPoint();
+  return {id,name:name||'Gooby',x:p.x,y:p.y,r:44,score:0,orbs:0,kills:0,alive:true,isLocal:!!isLocal,tagged:false,crownTime:0,hue:Math.floor(Math.random()*360),vx:0,vy:0,_input:{x:0,y:0}};
+}
+function multiAddPlayer(p){multi.players.set(p.id,p);multiRenderLobbyList();}
+function multiRemovePlayer(id){multi.players.delete(id);multiRenderLobbyList();}
+function multiSend(conn,data){try{if(conn&&conn.open)conn.send(data);}catch(e){}}
+function multiSendAll(data){multi.conns.forEach(c=>multiSend(c,data));}
+function multiSendSnapshot(conn){if(!conn)return;multiSend(conn,{type:'snapshot',started:multi.started,challenge:multi.challenge,startedAt:multi.startedAt,winner:multi.winner,taggerId:multi.taggerId,crown:multi.crown,players:[...multi.players.values()].map(multiPublicPlayer),foods:multi.foods,powerups:multi.powerups});}
+function multiPublicPlayer(p){return {id:p.id,name:p.name,x:p.x,y:p.y,r:p.r,score:p.score,orbs:p.orbs,kills:p.kills||0,alive:p.alive,tagged:p.tagged,crownTime:p.crownTime,hue:p.hue};}
 function multiResetArena(){
-  multi.collectibles=[];
-  for(let i=0;i<85;i++) multi.collectibles.push({id:i,x:80+Math.random()*2240,y:80+Math.random()*1440,v:1+Math.floor(Math.random()*5),hue:Math.floor(Math.random()*360)});
-  [...multi.players.values()].forEach((p,i)=>{ p.x=350+(i%4)*500+Math.random()*120; p.y=360+Math.floor(i/4)*650+Math.random()*100; p.r=44;p.score=0;p.orbs=0;p.alive=true; });
+  multi.foods=[]; multi.powerups=[]; multi.nextEntityId=1;
+  for(let i=0;i<110;i++)multi.foods.push({id:multi.nextEntityId++,x:80+Math.random()*(multi.world.w-160),y:80+Math.random()*(multi.world.h-160),v:1+Math.floor(Math.random()*4),kind:Math.random()<.12?'gold':'normal'});
+  for(let i=0;i<12;i++)multi.powerups.push({id:multi.nextEntityId++,x:120+Math.random()*(multi.world.w-240),y:120+Math.random()*(multi.world.h-240),kind:['speed','mega','shield'][Math.floor(Math.random()*3)],taken:false});
+  [...multi.players.values()].forEach(p=>{const q=multiSpawnPoint();p.x=q.x;p.y=q.y;p.r=44;p.score=0;p.orbs=0;p.kills=0;p.alive=true;p.tagged=false;p.crownTime=0;p._input={x:0,y:0};});
+  multi.crown={x:1300,y:900,r:44,carrier:null};
+  const ids=[...multi.players.keys()]; multi.taggerId=ids.length>1?ids[Math.floor(Math.random()*ids.length)]:null;
+  if(multi.taggerId)multi.players.get(multi.taggerId).tagged=true;
 }
 function multiStartChallenge(type){
-  if(!multi.isHost) return;
-  multi.challenge=type; multi.started=true; multi.running=true; multi.startedAt=Date.now(); multi.winner=null; multiResetArena();
-  multiBroadcastState(true); multiSetStatus('Challenge live! Good luck, Goobies!');
-  const r=document.getElementById('multiResult'); r.classList.remove('show');
+  if(!multi.isHost)return;
+  if(multi.players.size<1){multiSetStatus('You need at least one player in the lobby.');return;}
+  multi.challenge=type;multi.started=true;multi.running=true;multi.startedAt=Date.now();multi.winner=null;
+  document.getElementById('multiResult').classList.remove('show');
+  multiResetArena();
+  multiSetStatus('Challenge started! Move with WASD, arrows, or your mouse/finger.');
+  multiBroadcastSnapshot(true);
 }
-function multiChallengeProgress(p){
-  if(!multi.challenge) return {value:0,target:0};
-  const target=MULTI_CHALLENGES[multi.challenge].target;
+function multiProgress(p){
+  if(!multi.challenge)return {value:0,target:0};
+  const goal=MULTI_CHALLENGES[multi.challenge].goal;
   let value=0;
-  if(multi.challenge==='collector') value=p.orbs;
-  else if(multi.challenge==='giant') value=p.r/44;
-  else if(multi.challenge==='hoarder') value=p.orbs;
-  else if(multi.challenge==='survive') value=Math.min(90,(Date.now()-multi.startedAt)/1000);
-  else if(multi.challenge==='score') value=p.score;
-  return {value,target};
+  if(multi.challenge==='orb')value=p.orbs;
+  else if(multi.challenge==='score')value=p.score;
+  else if(multi.challenge==='giant')value=p.r/44;
+  else if(multi.challenge==='tag')value=p.id===multi.taggerId?0:Math.max(0,(Date.now()-multi.startedAt)/1000);
+  else if(multi.challenge==='crown')value=p.crownTime;
+  else if(multi.challenge==='survival')value=(Date.now()-multi.startedAt)/1000;
+  return {value,target:goal};
 }
 function multiCheckWinner(){
-  if(!multi.isHost || !multi.started || multi.winner) return;
-  const ps=[...multi.players.values()];
-  for(const p of ps){
-    const pr=multiChallengeProgress(p);
-    if(pr.value>=pr.target){ multi.winner=p.id; multi.running=false; multiBroadcastState(true); return; }
+  if(!multi.isHost||!multi.started||multi.winner)return;
+  const elapsed=(Date.now()-multi.startedAt)/1000;
+  if(multi.challenge==='tag'){
+    const living=[...multi.players.values()].filter(p=>p.alive);
+    if(living.length===1){multi.winner=living[0].id;return;}
   }
+  if(multi.challenge==='survival'&&elapsed>=90){
+    const best=[...multi.players.values()].sort((a,b)=>b.score-a.score)[0]; if(best)multi.winner=best.id; return;
+  }
+  for(const p of multi.players.values()){
+    if(multiProgressReached(p)){multi.winner=p.id;return;}
+  }
+}
+function multiProgressReached(p){
+  const pr=multiProgress(p);
+  return pr.value>=pr.target;
 }
 function multiHostUpdate(dt){
-  const p=multi.players.get(multi.peer.id); if(!p) return;
-  const sp=260*dt*(1/Math.max(1,1+(p.r-44)/180));
-  const dx=multi.pointer.x-0.5, dy=multi.pointer.y-0.5;
-  let mx=dx, my=dy;
-  if(multi.keys.ArrowLeft||multi.keys.a) mx-=0.7;
-  if(multi.keys.ArrowRight||multi.keys.d) mx+=0.7;
-  if(multi.keys.ArrowUp||multi.keys.w) my-=0.7;
-  if(multi.keys.ArrowDown||multi.keys.s) my+=0.7;
-  const len=Math.hypot(mx,my); if(len>0.05){mx/=Math.max(1,len);my/=Math.max(1,len);p.x+=mx*sp;p.y+=my*sp;}
-  p.x=Math.max(p.r,Math.min(multi.world.w-p.r,p.x)); p.y=Math.max(p.r,Math.min(multi.world.h-p.r,p.y));
-  for(let i=multi.collectibles.length-1;i>=0;i--){
-    const o=multi.collectibles[i]; const d=Math.hypot(o.x-p.x,o.y-p.y);
-    if(d<p.r+18){ p.orbs+=o.v; p.score+=o.v*2; p.r=Math.min(120,p.r+o.v*0.8); multi.collectibles.splice(i,1);
-      multi.collectibles.push({id:Date.now()+Math.random(),x:80+Math.random()*2240,y:80+Math.random()*1440,v:1+Math.floor(Math.random()*5),hue:Math.floor(Math.random()*360)});
-      SFX.pop();
-    }
+  if(!multi.started||multi.winner)return;
+  const now=Date.now();
+
+  // The host is also a real player. Feed the host's local controls into
+  // the exact same authoritative input path used by remote players.
+  const hostPlayer = multi.peer && multi.players.get(multi.peer.id);
+  if(hostPlayer && hostPlayer.alive){
+    hostPlayer._input = multiLocalInput();
   }
-  multi.players.forEach(q=>{ if(q.id===p.id) return; const d=Math.hypot(q.x-p.x,q.y-p.y); if(d<p.r+q.r && p.r>q.r*1.24){ p.r=Math.min(130,p.r+q.r*0.14);p.score+=10;q.r=38;q.x=120+Math.random()*2160;q.y=120+Math.random()*1360;q.orbs=0;q.score=Math.floor(q.score*0.8); }});
+
+  for(const p of multi.players.values()){
+    if(!p.alive)continue;
+    const input=p._input||{x:0,y:0};
+    let mx=Number(input.x)||0,my=Number(input.y)||0;
+    const len=Math.hypot(mx,my); if(len>1){mx/=len;my/=len;}
+    let speed=315/(1+Math.max(0,(p.r-44)/150));
+    if(p._speedUntil&&p._speedUntil>now)speed*=1.55;
+    p.x=Math.max(p.r,Math.min(multi.world.w-p.r,p.x+mx*speed*dt));
+    p.y=Math.max(p.r,Math.min(multi.world.h-p.r,p.y+my*speed*dt));
+    p._speedUntil=p._speedUntil||0;
+    multiHostCollect(p,now);
+  }
+  multiHostPlayers(dt,now);
+  if(multi.challenge==='crown')multiHostCrown(dt);
   multiCheckWinner();
 }
-function multiBroadcastState(force){
-  if(!multi.isHost) return;
-  const now=Date.now(); if(!force && now-multi.lastBroadcast<70) return; multi.lastBroadcast=now;
-  const state={type:'state',started:multi.started,challenge:multi.challenge,startedAt:multi.startedAt,winner:multi.winner,
-    players:[...multi.players.values()].map(p=>({id:p.id,name:p.name,x:p.x,y:p.y,r:p.r,score:p.score,orbs:p.orbs,hue:p.colorHue,alive:p.alive})),
-    collectibles:multi.collectibles};
-  multiSendAll(state); multiApplyState(state);
+function multiHostCollect(p,now){
+  for(let i=multi.foods.length-1;i>=0;i--){
+    const o=multi.foods[i],d=Math.hypot(o.x-p.x,o.y-p.y);
+    if(d<p.r+15){
+      const gain=o.v*(o.kind==='gold'?3:1);
+      p.orbs += gain;
+      p.score += gain * 2;
+      p.r = Math.min(128,p.r + gain*0.72);
+      multi.foods.splice(i,1);
+      if(p.id===multi.peer?.id) multiSetStatus('+'+gain+' points! Keep collecting.');
+      const q=multiSpawnPoint();multi.foods.push({id:multi.nextEntityId++,x:q.x,y:q.y,v:1+Math.floor(Math.random()*4),kind:Math.random()<.12?'gold':'normal'});
+    }
+  }
+  for(let i=multi.powerups.length-1;i>=0;i--){
+    const o=multi.powerups[i],d=Math.hypot(o.x-p.x,o.y-p.y);if(o.taken||d>p.r+22)continue;
+    o.taken=true;
+    if(o.kind==='speed')p._speedUntil=now+8000;
+    if(o.kind==='mega'){p.r=Math.min(140,p.r+14);p.score+=30;}
+    if(o.kind==='shield'){p._shieldUntil=now+7000;p.score+=15;}
+    setTimeout(()=>{if(multi.isHost){const idx=multi.powerups.indexOf(o);if(idx>=0)multi.powerups.splice(idx,1);const q=multiSpawnPoint();multi.powerups.push({id:multi.nextEntityId++,x:q.x,y:q.y,kind:['speed','mega','shield'][Math.floor(Math.random()*3)],taken:false});}},1500);
+  }
 }
-function multiApplyState(state){
-  multi.started=!!state.started; multi.challenge=state.challenge; multi.startedAt=state.startedAt||0; multi.winner=state.winner||null; multi.collectibles=Array.isArray(state.collectibles)?state.collectibles:[];
+function multiHostPlayers(dt,now){
+  const ps=[...multi.players.values()].filter(p=>p.alive);
+  for(let i=0;i<ps.length;i++)for(let j=i+1;j<ps.length;j++){
+    const a=ps[i],b=ps[j],d=Math.hypot(a.x-b.x,a.y-b.y);if(d>a.r+b.r)continue;
+    const big=a.r>b.r?a:b,small=big===a?b:a;
+    if(multi.challenge==='tag'){
+      if(a.id===multi.taggerId&&b.id!==a.id){multiPassTag(b,now);}
+      else if(b.id===multi.taggerId&&a.id!==b.id){multiPassTag(a,now);}
+      continue;
+    }
+    if(big.r>small.r*1.25&&!small._shieldUntil){
+      big.r=Math.min(140,big.r+small.r*0.08);
+      big.kills=(big.kills||0)+1;
+      big.score+=20;
+      small.score=Math.floor(small.score*.85);
+      small.orbs=0;
+      const q=multiSpawnPoint();small.x=q.x;small.y=q.y;small.r=44;small._shieldUntil=0;small._speedUntil=0;
+      if(big.id===multi.peer?.id)multiSetStatus('💥 '+small.name+' got bonked! +20 points');
+    }
+  }
+}
+function multiPassTag(p,now){
+  if(!multi.taggerId||p.id===multi.taggerId)return;
+  const old=multi.players.get(multi.taggerId);if(old)old.tagged=false;
+  multi.taggerId=p.id;p.tagged=true;p.score+=25;
+}
+function multiHostCrown(dt){
+  let carrier=null,min=Infinity;
+  for(const p of multi.players.values()){
+    const d=Math.hypot(p.x-multi.crown.x,p.y-multi.crown.y);
+    if(d<min&&d<p.r+multi.crown.r){min=d;carrier=p;}
+  }
+  if(carrier){multi.crown.carrier=carrier.id;carrier.crownTime+=(dt);carrier.score+=dt*2;multi.crown.x=carrier.x;multi.crown.y=carrier.y;}
+  else multi.crown.carrier=null;
+}
+function multiBroadcastSnapshot(force){
+  if(!multi.isHost)return;const n=Date.now();if(!force&&n-multi.lastBroadcast<33)return;multi.lastBroadcast=n;
+  const state={type:'snapshot',started:multi.started,challenge:multi.challenge,startedAt:multi.startedAt,winner:multi.winner,taggerId:multi.taggerId,crown:multi.crown,players:[...multi.players.values()].map(multiPublicPlayer),foods:multi.foods,powerups:multi.powerups};
+  multiSendAll(state);multiApplySnapshot(state);
+}
+function multiApplySnapshot(s){
+  multi.started=!!s.started;multi.challenge=s.challenge;multi.startedAt=s.startedAt||0;multi.winner=s.winner||null;multi.taggerId=s.taggerId||null;
+  multi.foods=Array.isArray(s.foods)?s.foods:[];multi.powerups=Array.isArray(s.powerups)?s.powerups:[];multi.crown=s.crown||multi.crown;
   const seen=new Set();
-  (state.players||[]).forEach(q=>{ seen.add(q.id); const old=multi.players.get(q.id); multi.players.set(q.id,{...q,isLocal:q.id===multi.peer?.id}); });
-  [...multi.players.keys()].forEach(id=>{ if(!seen.has(id)) multi.players.delete(id); });
-  multiRenderLobbyList(); multiRenderHud();
-  if(multi.winner) multiShowResult(multi.winner);
+  (s.players||[]).forEach(q=>{seen.add(q.id);const local=q.id===multi.peer?.id;const old=multi.players.get(q.id)||{};multi.players.set(q.id,{...old,...q,isLocal:local});});
+  [...multi.players.keys()].forEach(id=>{if(!seen.has(id))multi.players.delete(id);});
+  multiRenderLobbyList();multiRenderHud();if(multi.winner)multiShowResult(multi.winner);
 }
 function multiHostHandle(conn,msg){
-  if(!msg||!msg.type) return;
+  if(!msg||!msg.type)return;
   if(msg.type==='join'){
-    const id=conn.peer; const taken=[...multi.players.values()].map(p=>p.name.toLowerCase());
-    let nm=(msg.name||'Gooby').slice(0,16); if(taken.includes(nm.toLowerCase())) nm=nm.slice(0,12)+'-'+Math.floor(Math.random()*99);
-    multi.conns.set(id,conn); multiAddPlayer(multiNewPlayer(id,nm,false));
-    multiSend(conn,{type:'state',started:multi.started,challenge:multi.challenge,startedAt:multi.startedAt,winner:multi.winner,players:[...multi.players.values()].map(p=>({id:p.id,name:p.name,x:p.x,y:p.y,r:p.r,score:p.score,orbs:p.orbs,hue:p.colorHue,alive:p.alive})),collectibles:multi.collectibles});
-    multiSetStatus(nm+' joined the lobby.');
-    return;
+    if(multi.started){multiSend(conn,{type:'reject',reason:'That challenge has already started. Join after it finishes.'});try{conn.close();}catch(e){}return;}
+    let nm=String(msg.name||'Gooby').replace(/[^a-zA-Z0-9 _-]/g,'').slice(0,16)||'Gooby';
+    const taken=[...multi.players.values()].map(p=>p.name.toLowerCase());if(taken.includes(nm.toLowerCase()))nm=nm.slice(0,12)+'-'+Math.floor(10+Math.random()*90);
+    multi.conns.set(conn.peer,conn);multiAddPlayer(multiNewPlayer(conn.peer,nm,false));
+    multiSendSnapshotTo(conn);multiSetStatus(nm+' joined the lobby.');return;
   }
   if(msg.type==='input'){
-    const p=multi.players.get(conn.peer); if(p){ p.x=Math.max(p.r,Math.min(multi.world.w-p.r,Number(msg.x)||p.x)); p.y=Math.max(p.r,Math.min(multi.world.h-p.r,Number(msg.y)||p.y)); }
+    const p=multi.players.get(conn.peer);if(!p)return;p._input={x:Math.max(-1,Math.min(1,Number(msg.x)||0)),y:Math.max(-1,Math.min(1,Number(msg.y)||0))};
   }
 }
-function multiAttachConn(conn){
-  conn.on('open',()=>{ multiSetStatus('Connected.'); if(!multi.isHost) multiSend(conn,{type:'join',name:multi.name}); });
-  conn.on('data',msg=>{ if(multi.isHost) multiHostHandle(conn,msg); else if(msg?.type==='state') multiApplyState(msg); });
-  conn.on('close',()=>{ if(multi.isHost){ multiRemovePlayer(conn.peer); multi.conns.delete(conn.peer); multiBroadcastState(true); multiSetStatus('A player left the lobby.'); }});
+function multiSendSnapshotTo(conn){
+  if(multi.isHost)multiSendSnapshot(false);multiSend(conn,{type:'snapshot',started:multi.started,challenge:multi.challenge,startedAt:multi.startedAt,winner:multi.winner,taggerId:multi.taggerId,crown:multi.crown,players:[...multi.players.values()].map(multiPublicPlayer),foods:multi.foods,powerups:multi.powerups});
+}
+function multiAttachConnListeners(conn){
+  conn.on('data',msg=>{if(multi.isHost)multiHostHandle(conn,msg);else if(msg?.type==='snapshot')multiApplySnapshot(msg);else if(msg?.type==='reject')multiSetStatus(msg.reason||'Unable to join.');});
+  conn.on('close',()=>{if(multi.isHost){multiRemovePlayer(conn.peer);multi.conns.delete(conn.peer);if(multi.taggerId===conn.peer)multi.taggerId=null;multiBroadcastSnapshot(true);multiSetStatus('A player left the lobby.');}});
   conn.on('error',()=>{});
 }
-function multiCreate(){
-  multiLeave(false); multi.name=multiNameSafe();
-  const code=multiCode(); const id=multiHostIdFromCode(code); multi.code=code; multi.isHost=true; multi.hostId=id;
-  multi.peer=new Peer(id);
-  multi.peer.on('open',()=>{
-    multi.players.set(multi.peer.id,multiNewPlayer(multi.peer.id,multi.name,true));
-    document.getElementById('multiLobbyCode').textContent=code; document.getElementById('multiLobbyCode').classList.add('show');
-    document.getElementById('multiHostControls').classList.add('show'); multiSetStatus('Lobby created. Share the code with friends.'); multiRenderLobbyList(); multiResize();
+function multiAttachClientConn(conn){
+  multi.hostConn=conn;
+  conn.on('open',()=>{
+    multiSetStatus('Connected to host.');
+    multiSend(conn,{type:'join',name:multi.name});
+    const input=multiLocalInput();
+    multiSend(conn,{type:'input',x:input.x,y:input.y});
   });
-  multi.peer.on('connection',multiAttachConn);
+  conn.on('data',msg=>{if(msg?.type==='snapshot')multiApplySnapshot(msg);else if(msg?.type==='reject')multiSetStatus(msg.reason||'Lobby rejected the join.');});
+  conn.on('close',()=>multiSetStatus('Host disconnected. Create a new lobby to play again.'));
+  conn.on('error',()=>multiSetStatus('Connection error — try joining again.'));
+}
+function multiCreate(){
+  multiLeave(false);multi.name=multiNameSafe();
+  const code=multiCode(),id=multiHostIdFromCode(code);multi.code=code;multi.isHost=true;multi.hostId=id;
+  if(typeof Peer==='undefined'){multiSetStatus('PeerJS failed to load. Refresh the page and try again.');return;}
+  multi.peer=new Peer(id);
+  multi.peer.on('open',()=>{multi.players.set(multi.peer.id,multiNewPlayer(multi.peer.id,multi.name,true));document.getElementById('multiLobbyCode').textContent=code;document.getElementById('multiLobbyCode').classList.add('show');document.getElementById('multiHostControls').classList.add('show');multiSetStatus('Lobby created! Share the code with friends.');multiRenderLobbyList();multiResize();multiGameLoop();});
+  multi.peer.on('connection',conn=>{multiAttachConnListeners(conn);});
   multi.peer.on('error',e=>multiSetStatus('Could not create lobby: '+(e.type||e.message||'unknown error')));
-  multi.peer.on('disconnected',()=>multiSetStatus('Connection to the signaling server was lost.'));
-  multiGameLoop();
+  multi.peer.on('disconnected',()=>multiSetStatus('Signaling connection lost. Refresh and create a new lobby.'));
 }
 function multiJoin(){
-  const code=(document.getElementById('multiLobbyCodeInput').value||'').trim().toUpperCase(); if(!/^[A-Z0-9]{4,8}$/.test(code)){multiSetStatus('Enter the lobby code first.');return;}
-  multiLeave(false); multi.name=multiNameSafe(); multi.code=code; multi.isHost=false; multi.hostId=multiHostIdFromCode(code); multi.peer=new Peer();
-  multi.peer.on('open',()=>{ const conn=multi.peer.connect(multi.hostId,{reliable:true}); multiAttachConn(conn); multiSetStatus('Joining '+code+'…'); document.getElementById('multiLobbyCode').textContent=code; document.getElementById('multiLobbyCode').classList.add('show'); });
-  multi.peer.on('error',e=>multiSetStatus('Could not join lobby. Check the code and make sure the host is still online.'));
-  multiGameLoop();
+  const code=(document.getElementById('multiLobbyCodeInput').value||'').trim().toUpperCase();
+  if(!/^[A-Z0-9]{4,8}$/.test(code)){multiSetStatus('Enter the lobby code first.');return;}
+  multiLeave(false);multi.name=multiNameSafe();multi.code=code;multi.isHost=false;multi.hostId=multiHostIdFromCode(code);
+  if(typeof Peer==='undefined'){multiSetStatus('PeerJS failed to load. Refresh the page and try again.');return;}
+  multi.peer=new Peer();
+  multi.peer.on('open',()=>{const conn=multi.peer.connect(multi.hostId,{reliable:true});multiAttachClientConn(conn);multiSetStatus('Connecting to '+code+'…');document.getElementById('multiLobbyCode').textContent=code;document.getElementById('multiLobbyCode').classList.add('show');multiGameLoop();});
+  multi.peer.on('error',e=>multiSetStatus('Could not join '+code+'. Check the code and make sure the host is online.'));
 }
-function multiSendLocalInput(){
-  if(!multi.peer || multi.isHost || !multi.conns.size) return;
-  const p=multi.players.get(multi.peer.id); if(!p) return;
-  const now=Date.now(); if(now-multi.lastInput<50)return; multi.lastInput=now;
-  multiSend([...multi.conns.values()][0],{type:'input',x:p.x,y:p.y});
+function multiLocalInput(){
+  let x=multi.steer.x,y=multi.steer.y;
+  if(multi.keys.ArrowLeft||multi.keys.a)x-=1;if(multi.keys.ArrowRight||multi.keys.d)x+=1;if(multi.keys.ArrowUp||multi.keys.w)y-=1;if(multi.keys.ArrowDown||multi.keys.s)y+=1;
+  const len=Math.hypot(x,y);if(len>1){x/=len;y/=len;}return{x,y};
 }
-function multiClientUpdate(dt){
-  const p=multi.players.get(multi.peer?.id); if(!p)return;
-  const speed=260*dt*(1/Math.max(1,1+(p.r-44)/180)); let mx=multi.pointer.x-0.5,my=multi.pointer.y-0.5;
-  if(multi.keys.ArrowLeft||multi.keys.a)mx-=0.7;if(multi.keys.ArrowRight||multi.keys.d)mx+=0.7;if(multi.keys.ArrowUp||multi.keys.w)my-=0.7;if(multi.keys.ArrowDown||multi.keys.s)my+=0.7;
-  const len=Math.hypot(mx,my);if(len>0.05){mx/=Math.max(1,len);my/=Math.max(1,len);p.x+=mx*speed;p.y+=my*speed;}
-  p.x=Math.max(p.r,Math.min(multi.world.w-p.r,p.x));p.y=Math.max(p.r,Math.min(multi.world.h-p.r,p.y));
-  multiSendLocalInput();
+function multiClientUpdate(){
+  if(!multi.peer||multi.isHost||!multi.hostConn||!multi.hostConn.open)return;
+  const input=multiLocalInput();
+  const me=multi.players.get(multi.peer.id);
+  // Tiny client-side prediction keeps the local Gooby responsive between snapshots.
+  // The host remains authoritative and will correct the position on the next snapshot.
+  if(me && me.alive){
+    const len=Math.hypot(input.x,input.y)||1;
+    const speed=315/(1+Math.max(0,(me.r-44)/150));
+    me.x=Math.max(me.r,Math.min(multi.world.w-me.r,me.x+(input.x/len)*speed*(1/60)));
+    me.y=Math.max(me.r,Math.min(multi.world.h-me.r,me.y+(input.y/len)*speed*(1/60)));
+  }
+  const now=Date.now();
+  if(now-multi.lastInputSent<30)return;
+  multi.lastInputSent=now;
+  multiSend(multi.hostConn,{type:'input',x:input.x,y:input.y});
 }
 function multiGameLoop(t){
-  if(!multi.lastFrame)multi.lastFrame=t||performance.now(); const now=t||performance.now(); const dt=Math.min(0.05,(now-multi.lastFrame)/1000);multi.lastFrame=now;
-  if(multi.started&&!multi.winner){ if(multi.isHost)multiHostUpdate(dt); else multiClientUpdate(dt); }
-  multiDraw();
-  multi.anim=requestAnimationFrame(multiGameLoop);
+  const now=t||performance.now();if(!multi.lastFrame)multi.lastFrame=now;const dt=Math.min(.05,(now-multi.lastFrame)/1000);multi.lastFrame=now;
+  if(multi.isHost)multiHostUpdate(dt);else multiClientUpdate();
+  if(multi.isHost)multiBroadcastSnapshot(false);
+  multiDraw();multi.anim=requestAnimationFrame(multiGameLoop);
 }
 function multiDraw(){
-  const c=multiCanvas(),ctx=multiCtx(); if(!c||!ctx)return; const d=window.devicePixelRatio||1; const w=c.width,h=c.height; ctx.clearRect(0,0,w,h);
-  ctx.save(); ctx.fillStyle='#dff3f5';ctx.fillRect(0,0,w,h);
-  const my=multi.players.get(multi.peer?.id); const camX=my?Math.max(0,Math.min(multi.world.w-w/d,(my.x-w/d/2))):0; const camY=my?Math.max(0,Math.min(multi.world.h-h/d,(my.y-h/d/2))):0;
-  ctx.scale(d,d); const vw=c.clientWidth||w/d,vh=c.clientHeight||h/d;
-  const sx=vw/(w/d),sy=vh/(h/d); ctx.scale(sx,sy); const ox=-camX,oy=-camY; ctx.save();ctx.translate(ox,oy);
-  // grid
-  ctx.strokeStyle='rgba(124,107,168,.10)';ctx.lineWidth=1;for(let x=0;x<=multi.world.w;x+=100){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,multi.world.h);ctx.stroke();}for(let y=0;y<=multi.world.h;y+=100){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(multi.world.w,y);ctx.stroke();}
-  // collectibles
-  for(const o of multi.collectibles){ctx.beginPath();ctx.fillStyle=`hsl(${o.hue} 78% 58%)`;ctx.shadowColor='rgba(61,52,80,.16)';ctx.shadowBlur=10;ctx.arc(o.x,o.y,7+o.v,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.beginPath();ctx.fillStyle='rgba(255,255,255,.7)';ctx.arc(o.x-2,o.y-2,2.2,0,Math.PI*2);ctx.fill();}
-  // players (Gooby image)
-  const gooby=GOOBY_SRC; for(const p of [...multi.players.values()].sort((a,b)=>a.r-b.r)){
-    ctx.save();ctx.translate(p.x,p.y);ctx.beginPath();ctx.fillStyle=`hsla(${p.hue||280},70%,62%,.18)`;ctx.arc(0,0,p.r+7,0,Math.PI*2);ctx.fill();
-    if(gooby){ const size=p.r*2.1; ctx.drawImage(document.getElementById('clickTarget'),-size/2,-size/2,size,size); }
-    else {ctx.fillStyle='#c7b6ea';ctx.beginPath();ctx.arc(0,0,p.r,0,Math.PI*2);ctx.fill();}
-    ctx.fillStyle='#3D3450';ctx.font='700 '+Math.max(12,p.r*.34)+'px Quicksand, sans-serif';ctx.textAlign='center';ctx.fillText(p.name,0,-p.r-10);
-    ctx.font='700 '+Math.max(10,p.r*.27)+'px JetBrains Mono,monospace';ctx.fillStyle='#6B5F82';ctx.fillText(String(p.score),0,p.r*.2);ctx.restore();
-  }
-  ctx.strokeStyle='rgba(91,74,133,.28)';ctx.lineWidth=8;ctx.strokeRect(0,0,multi.world.w,multi.world.h);ctx.restore();
-  // minimap
-  const mw=130,mh=86;ctx.fillStyle='rgba(255,253,249,.85)';ctx.fillRect(vw-mw-14,14,mw,mh);ctx.strokeStyle='rgba(124,107,168,.24)';ctx.strokeRect(vw-mw-14,14,mw,mh);
-  for(const p of multi.players.values()){ctx.fillStyle=p.id===multi.peer?.id?'#7C6BA8':'#F2A65A';ctx.beginPath();ctx.arc(vw-mw-14+p.x/multi.world.w*mw,14+p.y/multi.world.h*mh,3,0,Math.PI*2);ctx.fill();}
-  ctx.restore();
+  const c=multiCanvas(),ctx=multiCtx();if(!c||!ctx)return;const d=Math.min(2,window.devicePixelRatio||1),cw=c.width/d,ch=c.height/d;ctx.clearRect(0,0,c.width,c.height);ctx.save();ctx.scale(d,d);
+  const me=multi.players.get(multi.peer?.id),camX=me?Math.max(0,Math.min(multi.world.w-cw,me.x-cw/2)):0,camY=me?Math.max(0,Math.min(multi.world.h-ch,me.y-ch/2)):0;
+  ctx.fillStyle='#dff3f5';ctx.fillRect(0,0,cw,ch);ctx.save();ctx.translate(-camX,-camY);
+  ctx.strokeStyle='rgba(124,107,168,.09)';ctx.lineWidth=1;for(let x=0;x<=multi.world.w;x+=100){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,multi.world.h);ctx.stroke();}for(let y=0;y<=multi.world.h;y+=100){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(multi.world.w,y);ctx.stroke();}
+  for(const o of multi.foods){ctx.beginPath();ctx.fillStyle=o.kind==='gold'?'#F2A65A':'#9A83C5';ctx.shadowColor='rgba(61,52,80,.18)';ctx.shadowBlur=9;ctx.arc(o.x,o.y,7+o.v,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.beginPath();ctx.fillStyle='rgba(255,255,255,.75)';ctx.arc(o.x-2,o.y-2,2.3,0,Math.PI*2);ctx.fill();}
+  const icons={speed:'⚡',mega:'🍄',shield:'🛡️'};for(const o of multi.powerups){if(o.taken)continue;ctx.font='22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(icons[o.kind]||'✨',o.x,o.y);}
+  if(multi.challenge==='crown'&&!multi.crown.carrier){ctx.font='34px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('👑',multi.crown.x,multi.crown.y);}
+  for(const p of [...multi.players.values()].sort((a,b)=>a.r-b.r)){ctx.save();ctx.translate(p.x,p.y);if(p.id===multi.taggerId&&multi.challenge==='tag'){ctx.beginPath();ctx.strokeStyle='#ef5d6f';ctx.lineWidth=5;ctx.arc(0,0,p.r+10,0,Math.PI*2);ctx.stroke();}if(p.id===multi.peer?.id){ctx.beginPath();ctx.strokeStyle='#7C6BA8';ctx.lineWidth=4;ctx.arc(0,0,p.r+6,0,Math.PI*2);ctx.stroke();}const img=document.getElementById('clickTarget');if(img?.complete&&img.naturalWidth){const sz=p.r*2.1;ctx.drawImage(img,-sz/2,-sz/2,sz,sz);}else{ctx.fillStyle='#b7a6de';ctx.beginPath();ctx.arc(0,0,p.r,0,Math.PI*2);ctx.fill();}ctx.fillStyle='#3D3450';ctx.font='700 14px Quicksand, sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText(p.name,0,-p.r-8);ctx.font='700 11px JetBrains Mono,monospace';ctx.fillStyle='#6B5F82';ctx.textBaseline='top';ctx.fillText(String(Math.floor(p.score))+' pts  •  '+String(p.kills||0)+' K',0,p.r+5);if(p.id===multi.taggerId&&multi.challenge==='tag'){ctx.font='700 11px Quicksand,sans-serif';ctx.fillStyle='#c0546b';ctx.fillText('IT',0,p.r+19);}ctx.restore();}
+  ctx.strokeStyle='rgba(91,74,133,.3)';ctx.lineWidth=8;ctx.strokeRect(0,0,multi.world.w,multi.world.h);ctx.restore();
+  ctx.fillStyle='rgba(255,253,249,.88)';ctx.fillRect(cw-150,14,136,92);ctx.strokeStyle='rgba(124,107,168,.24)';ctx.strokeRect(cw-150,14,136,92);ctx.fillStyle='#3D3450';ctx.font='700 11px Quicksand,sans-serif';ctx.textAlign='left';ctx.fillText('PLAYERS',cw-140,31);let yy=48;for(const p of [...multi.players.values()].sort((a,b)=>b.score-a.score).slice(0,5)){ctx.fillText((p.id===multi.peer?.id?'• ':'')+p.name.slice(0,13),cw-140,yy);ctx.font='700 10px JetBrains Mono,monospace';ctx.textAlign='right';ctx.fillText(String(Math.floor(p.score)),cw-22,yy);ctx.font='700 11px Quicksand,sans-serif';ctx.textAlign='left';yy+=13;}ctx.restore();
 }
 function multiRenderHud(){
-  const label=document.getElementById('multiChallengeLabel'),count=document.getElementById('multiChallengeCount');
-  if(!multi.started||!multi.challenge){label.textContent='Lobby not started';count.textContent='Waiting for host…';return;}
-  label.textContent=MULTI_CHALLENGES[multi.challenge]?.label||'Challenge';
-  const me=multi.players.get(multi.peer?.id); if(!me){count.textContent='Connecting…';return;}
-  const pr=multiChallengeProgress(me); let value=pr.value;
-  if(multi.challenge==='survive') count.textContent=Math.floor(value)+' / '+pr.target+'s';
-  else if(multi.challenge==='giant') count.textContent=value.toFixed(1)+'× / '+pr.target+'×';
-  else count.textContent=Math.floor(value)+' / '+pr.target;
-}
+  const label=document.getElementById('multiChallengeLabel'),count=document.getElementById('multiChallengeCount');if(!multi.started||!multi.challenge){label.textContent='Lobby not started';count.textContent=multi.isHost?'Choose a challenge':'Waiting for host…';return;}label.textContent=MULTI_CHALLENGES[multi.challenge]?.label||'Challenge';const me=multi.players.get(multi.peer?.id);if(!me){count.textContent='Connecting…';return;}const pr=multiProgress(me);if(multi.challenge==='giant')count.textContent=pr.value.toFixed(1)+'× / '+pr.target+'×';else if(multi.challenge==='crown'||multi.challenge==='survival')count.textContent=Math.floor(pr.value)+' / '+pr.target+'s';else count.textContent=Math.floor(pr.value)+' / '+pr.target;}
 function multiRenderLobbyList(){
-  const el=document.getElementById('multiPlayerList'); el.innerHTML='';
-  [...multi.players.values()].sort((a,b)=>b.score-a.score).forEach(p=>{const row=document.createElement('div');row.className='multi-player-row';row.innerHTML='<strong>'+escapeHtml(p.name)+'</strong><span>'+(p.id===multi.peer?.id?'You':'Player')+(p.id===multi.peer?.id&&multi.isHost?' • Host':'')+'</span>';el.appendChild(row);});
-  const lb=document.getElementById('multiLeaderboard');lb.innerHTML='';
-  [...multi.players.values()].sort((a,b)=>b.score-a.score).slice(0,8).forEach((p,i)=>{const r=document.createElement('div');r.className='multi-lb-row '+(p.id===multi.peer?.id?'me':'');r.innerHTML='<div class="multi-lb-rank">#'+(i+1)+'</div><div class="multi-lb-name">'+escapeHtml(p.name)+'</div><div class="multi-lb-score">'+p.score+'</div>';lb.appendChild(r);});
+  const list=document.getElementById('multiPlayerList');if(list){list.innerHTML='';[...multi.players.values()].forEach(p=>{const r=document.createElement('div');r.className='multi-player-row';r.innerHTML='<strong>'+escapeHtml(p.name)+'</strong><span>'+(p.id===multi.peer?.id?'You':'Player')+(p.id===multi.peer?.id&&multi.isHost?' • Host':'')+'</span>';list.appendChild(r);});}
+  const lb=document.getElementById('multiLeaderboard');if(lb){lb.innerHTML='';[...multi.players.values()].sort((a,b)=>b.score-a.score).slice(0,8).forEach((p,i)=>{const r=document.createElement('div');r.className='multi-lb-row '+(p.id===multi.peer?.id?'me':'');r.innerHTML='<div class="multi-lb-rank">#'+(i+1)+'</div><div class="multi-lb-name">'+escapeHtml(p.name)+'</div><div class="multi-lb-score">'+Math.floor(p.score)+' pts · '+(p.kills||0)+' K</div>';lb.appendChild(r);});}
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-function multiShowResult(id){
-  const p=multi.players.get(id); if(!p)return; document.getElementById('multiResultTitle').textContent=id===multi.peer?.id?'🏆 YOU WIN!':'🏁 '+p.name+' wins!'; document.getElementById('multiResultText').textContent=MULTI_CHALLENGES[multi.challenge]?.label+' complete.'; document.getElementById('multiResult').classList.add('show'); multiRenderHud();
-}
+function multiShowResult(id){const p=multi.players.get(id);if(!p)return;document.getElementById('multiResultTitle').textContent=id===multi.peer?.id?'🏆 YOU WIN!':'🏁 '+p.name+' wins!';document.getElementById('multiResultText').textContent=MULTI_CHALLENGES[multi.challenge]?.desc||'Challenge complete.';document.getElementById('multiResult').classList.add('show');multiRenderHud();}
 function multiLeave(reset=true){
   multi.conns.forEach(c=>{try{c.close();}catch(e){}});multi.conns.clear();
-  if(multi.peer){try{multi.peer.destroy();}catch(e){}} multi.peer=null;multi.players.clear();multi.started=false;multi.running=false;multi.isHost=false;multi.hostId=null;multi.winner=null;multi.challenge=null;
-  document.getElementById('multiLobbyCode').classList.remove('show');document.getElementById('multiHostControls').classList.remove('show');document.getElementById('multiResult').classList.remove('show');multiRenderLobbyList();multiRenderHud();if(reset)multiSetStatus('You left the lobby.');
+  if(multi.hostConn){try{multi.hostConn.close();}catch(e){}}multi.hostConn=null;
+  if(multi.peer){try{multi.peer.destroy();}catch(e){}}multi.peer=null;
+  if(multi.anim){cancelAnimationFrame(multi.anim);multi.anim=null;}
+  multi.players.clear();multi.foods=[];multi.powerups=[];multi.started=false;multi.running=false;multi.isHost=false;multi.hostId=null;multi.winner=null;multi.challenge=null;multi.taggerId=null;multi.crown={x:1300,y:900,r:44,carrier:null};multi.lastFrame=0;multi.lastInputSent=0;
+  document.getElementById('multiLobbyCode')?.classList.remove('show');document.getElementById('multiHostControls')?.classList.remove('show');document.getElementById('multiResult')?.classList.remove('show');multiRenderLobbyList();multiRenderHud();if(reset)multiSetStatus('You left the lobby.');
 }
 
 /* ============================================================
@@ -3007,7 +3098,7 @@ function setupListeners(){
   document.getElementById('multiDisconnectBtn').addEventListener('click', ()=>multiLeave(true));
   document.getElementById('multiResultClose').addEventListener('click', ()=>document.getElementById('multiResult').classList.remove('show'));
   window.addEventListener('resize', multiResize);
-  document.getElementById('multiCanvas').addEventListener('pointermove', e=>{const r=document.getElementById('multiCanvas').getBoundingClientRect();multi.pointer.x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));multi.pointer.y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height));});
+  document.getElementById('multiCanvas').addEventListener('pointermove', e=>{const r=document.getElementById('multiCanvas').getBoundingClientRect();multi.steer.x=Math.max(-1,Math.min(1,((e.clientX-r.left)/r.width-0.5)*2));multi.steer.y=Math.max(-1,Math.min(1,((e.clientY-r.top)/r.height-0.5)*2));});
   document.getElementById('multiCanvas').addEventListener('pointerdown', e=>{document.getElementById('multiCanvas').setPointerCapture?.(e.pointerId);});
   document.addEventListener('keydown', e=>{multi.keys[e.key]=true;});
   document.addEventListener('keyup', e=>{multi.keys[e.key]=false;});
