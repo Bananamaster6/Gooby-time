@@ -1718,6 +1718,7 @@ function renderTopStats(){
   document.getElementById('statBpc').textContent = formatNumber(computeBpc());
   document.getElementById('statBps').textContent = formatNumber(computeBps());
   document.getElementById('qsTotalBoops').textContent = formatNumber(state.totalBoops);
+  refreshShopAffordability();
 }
 function renderShop(){
   const grid = document.getElementById('shopGrid');
@@ -1739,6 +1740,21 @@ function renderShop(){
       +'</div>'
     +'</div>';
   }).join('');
+}
+function refreshShopAffordability(){
+  document.querySelectorAll('.shop-card[data-id]').forEach(card=>{
+    const id = card.dataset.id;
+    const u = UPGRADES.find(x=>x.id===id);
+    if(!u) return;
+    const cost = upgradeCost(u);
+    const affordable = state.boops >= cost;
+    const btn = card.querySelector('.buy-btn');
+    card.classList.toggle('affordable', affordable);
+    if(btn){
+      btn.disabled = !affordable;
+      btn.textContent = formatNumber(cost)+' 🥕';
+    }
+  });
 }
 function renderAchievements(){
   const grid = document.getElementById('achGrid');
@@ -2638,6 +2654,10 @@ function gameTickFast(){
     state.totalBoops += bps/10;
     renderTopStats();
   }
+  // Keep store buttons in sync with the live boop balance.
+  // Previously passive income could make an upgrade affordable while its
+  // button remained disabled until the whole shop was rebuilt.
+  refreshShopAffordability();
 }
 function gameTickSecond(){
   checkAchievements();
