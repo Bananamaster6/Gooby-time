@@ -743,6 +743,70 @@
     100%{transform:scale(0.88);opacity:1;}
   }
 
+  /* ---------- SATISFYING TOGGLE / MESH SCAN ---------- */
+  .satisfy-toggle{display:flex;gap:8px;}
+  .satisfy-toggle button{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:13.5px;
+    padding:8px 16px;
+    border-radius:999px;
+    background:var(--card);
+    border:1px solid var(--card-line);
+    color:var(--ink-soft);
+    box-shadow:0 2px 0 var(--shadow-soft);
+    transition:all .15s var(--ease-jelly);
+  }
+  .satisfy-toggle button:hover{transform:translateY(-2px);}
+  .satisfy-toggle button.active{background:var(--plum);color:#fff;border-color:var(--plum);box-shadow:0 3px 0 var(--plum-dark);}
+  .satisfy-pane{display:none;}
+  .satisfy-pane.active{display:block;}
+
+  .meshscan-panel{
+    background:#211c2e;
+    border-radius:var(--radius-md);
+    padding:16px;
+    box-shadow:0 3px 0 var(--shadow-soft);
+    display:grid;
+    grid-template-columns:1fr 220px;
+    gap:16px;
+  }
+  .meshscan-stage{
+    position:relative;
+    background:radial-gradient(ellipse at 50% 30%, #342a49 0%, #1a1626 75%);
+    border-radius:var(--radius-sm);
+    overflow:hidden;
+    min-height:320px;
+  }
+  .meshscan-stage canvas{display:block;width:100%;height:100%;}
+  .meshscan-rec{
+    position:absolute;top:12px;left:14px;
+    display:flex;align-items:center;gap:6px;
+    font-family:var(--font-mono);font-size:11px;color:#e8dff2;
+    opacity:0.85;
+  }
+  .meshscan-rec .dot{width:8px;height:8px;border-radius:50%;background:#ef5d6f;animation:recBlink 1.4s ease-in-out infinite;}
+  @keyframes recBlink{0%,60%{opacity:1;}80%{opacity:0.15;}100%{opacity:1;}}
+  .meshscan-label{
+    position:absolute;top:12px;right:14px;
+    font-family:var(--font-mono);font-size:11px;color:#b6a9d1;
+    text-align:right;line-height:1.5;
+  }
+  .meshscan-progress-wrap{
+    position:absolute;left:14px;right:14px;bottom:12px;
+  }
+  .meshscan-progress-label{font-family:var(--font-mono);font-size:11px;color:#cabfe4;margin-bottom:5px;}
+  .meshscan-progress-bar{height:5px;border-radius:99px;background:rgba(255,255,255,0.12);overflow:hidden;}
+  .meshscan-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--mint),var(--apricot));border-radius:99px;transition:width .12s linear;}
+  .meshscan-side{display:flex;flex-direction:column;gap:12px;}
+  .meshscan-side .pet-tip-card p{color:var(--ink-soft);}
+  .meshscan-stat-row{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-soft);}
+  .meshscan-stat-row + .meshscan-stat-row{margin-top:6px;}
+  @media (max-width:760px){
+    .meshscan-panel{grid-template-columns:1fr;}
+    .meshscan-stage{min-height:260px;}
+  }
+
   @media (max-width:900px){
     .petzone-main{grid-template-columns:1fr;}
     .pet-stage{min-height:340px;}
@@ -752,7 +816,7 @@
   /* ---------- GAMES ---------- */
   .games-menu{
     display:grid;
-    grid-template-columns:1fr 1fr;
+    grid-template-columns:repeat(auto-fit, minmax(240px,1fr));
     gap:20px;
   }
   .game-card{
@@ -857,6 +921,121 @@
     .games-menu{grid-template-columns:1fr;}
     .carrot-field{height:320px;}
   }
+
+  /* ---------- FIVE NIGHTS AT GOOBY ---------- */
+  .fnag-office{
+    position:relative;
+    background:radial-gradient(ellipse at 50% 0%, #2c2438 0%, #14101c 70%);
+    border-radius:var(--radius-md);
+    padding:20px;
+    min-height:340px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    overflow:hidden;
+  }
+  .fnag-topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+  .fnag-clock{font-family:var(--font-mono);font-weight:700;color:#f2e9ff;font-size:18px;}
+  .fnag-power-wrap{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:12px;color:#cabfe4;}
+  .fnag-power-bar{width:120px;height:8px;border-radius:99px;background:rgba(255,255,255,0.12);overflow:hidden;}
+  .fnag-power-fill{height:100%;width:100%;background:linear-gradient(90deg,var(--mint),var(--apricot));transition:width .25s linear;}
+  .fnag-power-fill.low{background:linear-gradient(90deg,#e0576a,#b23a4d);}
+  .fnag-doors{display:grid;grid-template-columns:1fr 1fr;gap:18px;flex:1;}
+  .fnag-door{
+    position:relative;
+    border-radius:var(--radius-sm);
+    background:linear-gradient(180deg,#3a3050 0%, #201a2c 100%);
+    border:2px solid rgba(255,255,255,0.08);
+    padding:14px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    min-height:200px;
+    transition:box-shadow .2s ease, border-color .2s ease;
+  }
+  .fnag-door-name{font-family:var(--font-display);color:#e8dff2;font-weight:700;font-size:14px;}
+  .fnag-door-visual{
+    flex:1;
+    margin:10px 0;
+    border-radius:10px;
+    background:rgba(0,0,0,0.35);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:44px;
+    position:relative;
+    overflow:hidden;
+  }
+  .fnag-door-visual img{width:70%;opacity:0;transition:opacity .2s ease, transform .2s ease;transform:scale(0.7) translateY(10px);}
+  .fnag-door.threat .fnag-door-visual img{opacity:1;transform:scale(1) translateY(0);}
+  .fnag-door.threat{border-color:#ef5d6f;box-shadow:0 0 0 3px rgba(239,93,111,0.25);}
+  .fnag-door.threat .fnag-door-visual{animation:fnagPulse .5s ease-in-out infinite;}
+  @keyframes fnagPulse{0%,100%{background:rgba(239,93,111,0.12);}50%{background:rgba(239,93,111,0.3);}}
+  .fnag-door-btn{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:13px;
+    padding:9px;
+    border-radius:10px;
+    background:var(--card);
+    color:var(--plum-dark);
+    box-shadow:0 3px 0 var(--shadow-soft);
+  }
+  .fnag-door.closed .fnag-door-btn{background:var(--mint);color:#1f4a30;box-shadow:0 3px 0 var(--mint-dark);}
+  .fnag-door.closed .fnag-door-visual::after{
+    content:"🚪 DOOR CLOSED";
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-mono);font-size:11px;color:#cfe8d8;
+    background:rgba(20,60,35,0.55);
+  }
+  .fnag-hint{font-size:12px;color:#b6a9d1;text-align:center;}
+
+  /* ---------- GOOBYCRAFT ---------- */
+  .craft-topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  .craft-resources{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--font-mono);font-weight:700;font-size:13px;color:var(--plum-dark);}
+  .craft-grid{
+    display:grid;
+    grid-template-columns:repeat(6,1fr);
+    gap:8px;
+    max-width:480px;
+    margin:0 auto;
+  }
+  .craft-block{
+    aspect-ratio:1;
+    border-radius:10px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:22px;
+    cursor:pointer;
+    user-select:none;
+    position:relative;
+    box-shadow:inset 0 -4px 0 rgba(0,0,0,0.18), 0 2px 0 var(--shadow-soft);
+    transition:transform .08s var(--ease-jelly);
+  }
+  .craft-block:active{transform:scale(0.92);}
+  .craft-block.grass{background:#8fd18a;}
+  .craft-block.dirt{background:#c99a63;}
+  .craft-block.stone{background:#aab0bb;}
+  .craft-block.wood{background:#b98650;}
+  .craft-block.ore{background:linear-gradient(135deg,#f2d34a,#d9a12a);}
+  .craft-block .cb-bar{
+    position:absolute;left:8%;right:8%;bottom:6px;
+    height:4px;border-radius:99px;background:rgba(0,0,0,0.2);overflow:hidden;
+  }
+  .craft-block .cb-bar-fill{height:100%;background:#fff;opacity:0.85;}
+  .craft-block.breaking{animation:craftShake .1s linear infinite;}
+  @keyframes craftShake{
+    0%{transform:translate(0,0);}
+    25%{transform:translate(-1px,1px);}
+    50%{transform:translate(1px,-1px);}
+    75%{transform:translate(-1px,-1px);}
+    100%{transform:translate(1px,1px);}
+  }
+  .craft-legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:12px;font-size:11.5px;color:var(--ink-faint);}
+  .craft-legend span{display:inline-flex;align-items:center;gap:5px;}
+  .craft-swatch{width:11px;height:11px;border-radius:3px;display:inline-block;}
 
   /* ---------- ACHIEVEMENTS ---------- */
   .ach-progress{font-size:14px;color:var(--ink-soft);margin-bottom:16px;}
@@ -1128,10 +1307,47 @@
 
     <div class="bubblewrap-section">
       <div class="bubblewrap-head">
-        <h3 class="section-heading">🫧 Gooby Bubble Wrap</h3>
-        <button class="btn btn-secondary" id="resetBubblesBtn">🔄 Fresh sheet</button>
+        <h3 class="section-heading">🧘 Satisfying Corner</h3>
+        <div class="satisfy-toggle" role="tablist" aria-label="Satisfying activity">
+          <button class="active" data-satisfy="bubblewrap" id="satisfyBubbleBtn" role="tab" aria-selected="true">🫧 Bubble Wrap</button>
+          <button data-satisfy="meshscan" id="satisfyMeshBtn" role="tab" aria-selected="false">🌀 Mesh Scan</button>
+        </div>
       </div>
-      <div class="bubblewrap-grid" id="bubbleGrid"></div>
+
+      <div class="satisfy-pane active" id="pane-bubblewrap">
+        <div class="bubblewrap-head" style="margin-top:0;">
+          <p style="font-size:12.5px;color:var(--ink-faint);">Pop every bubble on the sheet. It means nothing and that's the best part.</p>
+          <button class="btn btn-secondary" id="resetBubblesBtn">🔄 Fresh sheet</button>
+        </div>
+        <div class="bubblewrap-grid" id="bubbleGrid"></div>
+      </div>
+
+      <div class="satisfy-pane" id="pane-meshscan">
+        <p style="font-size:12.5px;color:var(--ink-faint);margin-bottom:12px;">Send Gooby into the scanner and watch it get rebuilt point by point, then textured, like a tiny 3D capture booth.</p>
+        <div class="meshscan-panel">
+          <div class="meshscan-stage" id="meshStage">
+            <canvas id="meshCanvas"></canvas>
+            <div class="meshscan-rec"><span class="dot"></span> REC</div>
+            <div class="meshscan-label" id="meshQualityLabel">HD Mesh<br>Ultra Quality</div>
+            <div class="meshscan-progress-wrap">
+              <div class="meshscan-progress-label" id="meshProgressLabel">Idle — ready to scan</div>
+              <div class="meshscan-progress-bar"><div class="meshscan-progress-fill" id="meshProgressFill"></div></div>
+            </div>
+          </div>
+          <div class="meshscan-side">
+            <div class="pet-tip-card">
+              <h4>🌀 Mesh Scan</h4>
+              <p>Points build up into a wireframe Gooby, then get textured. Purely satisfying, but it does earn a tiny happiness bump each time.</p>
+              <div class="pet-actions" style="margin-top:12px;">
+                <button class="btn btn-primary" id="startMeshScanBtn">▶ Scan Gooby</button>
+              </div>
+            </div>
+            <div class="pet-tip-card">
+              <div class="meshscan-stat-row"><span>Scans completed</span><span id="meshScanCount">0</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1151,6 +1367,20 @@
         <p>Wait, don't actually whack Gooby — this is just gentle bonking. Tap the goobies as they pop out of their burrows before they duck back down.</p>
         <div class="gc-high">Best score: <span id="whackHighDisplay">0</span></div>
         <button class="btn btn-primary" id="playWhackBtn">▶ Play</button>
+      </div>
+      <div class="game-card">
+        <div class="gc-icon">🌙</div>
+        <h3>Five Nights at Gooby</h3>
+        <p>Survive the night in the Gooby office. Check the hallways and shut the doors before a Gooby wanders in — but don't waste power, it doesn't regenerate.</p>
+        <div class="gc-high">Best night: <span id="fnagHighDisplay">0</span></div>
+        <button class="btn btn-primary" id="playFnagBtn">▶ Play</button>
+      </div>
+      <div class="game-card">
+        <div class="gc-icon">⛏️</div>
+        <h3>Goobycraft</h3>
+        <p>Mine the blocky field for wood, stone and rare Gooby Ore before time's up. Click a block a few times to break it.</p>
+        <div class="gc-high">Best haul: <span id="craftHighDisplay">0</span></div>
+        <button class="btn btn-primary" id="playCraftBtn">▶ Play</button>
       </div>
     </div>
 
@@ -1188,6 +1418,78 @@
           <h3>🔨 Whack-a-Gooby</h3>
           <p>Tap the goobies as soon as they peek out. You have 30 seconds!</p>
           <button class="btn btn-primary" id="whackStartBtn">Start Game</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Five Nights at Gooby game area -->
+    <div class="game-area hidden" id="fnagGameArea">
+      <div class="game-hud">
+        <div class="ghud-stats">
+          <span>Night: <span id="fnagNight">1</span></span>
+        </div>
+        <button class="game-close" id="closeFnagBtn">✕ Close</button>
+      </div>
+      <div style="position:relative;">
+        <div class="fnag-office">
+          <div class="fnag-topbar">
+            <div class="fnag-clock" id="fnagClock">12:00 AM</div>
+            <div class="fnag-power-wrap">
+              <span>⚡ Power</span>
+              <div class="fnag-power-bar"><div class="fnag-power-fill" id="fnagPowerFill"></div></div>
+              <span id="fnagPowerPct">100%</span>
+            </div>
+          </div>
+          <div class="fnag-doors">
+            <div class="fnag-door" id="fnagDoorL">
+              <div class="fnag-door-name">🚪 Left Hallway</div>
+              <div class="fnag-door-visual"><img id="fnagDoorLImg" alt="Gooby"></div>
+              <button class="fnag-door-btn" id="fnagDoorLBtn">Close Door</button>
+            </div>
+            <div class="fnag-door" id="fnagDoorR">
+              <div class="fnag-door-name">🚪 Right Hallway</div>
+              <div class="fnag-door-visual"><img id="fnagDoorRImg" alt="Gooby"></div>
+              <button class="fnag-door-btn" id="fnagDoorRBtn">Close Door</button>
+            </div>
+          </div>
+          <p class="fnag-hint">Close a door the moment Gooby shows up in that hallway — but closed doors drain power fast, so reopen once it's gone.</p>
+        </div>
+        <div class="game-overlay" id="fnagOverlay">
+          <h3>🌙 Five Nights at Gooby</h3>
+          <p>Watch both hallways. When a Gooby appears at a door, close it before the night gets to it. Survive to 6:00 AM. Run out of power and the doors won't budge.</p>
+          <button class="btn btn-primary" id="fnagStartBtn">Start Night 1</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Goobycraft game area -->
+    <div class="game-area hidden" id="craftGameArea">
+      <div class="game-hud">
+        <div class="ghud-stats">
+          <span>Time: <span id="craftTime">45</span>s</span>
+        </div>
+        <button class="game-close" id="closeCraftBtn">✕ Close</button>
+      </div>
+      <div style="position:relative;">
+        <div class="craft-topbar">
+          <div class="craft-resources">
+            <span>🪵 <span id="craftWood">0</span></span>
+            <span>🪨 <span id="craftStone">0</span></span>
+            <span>✨ <span id="craftOre">0</span></span>
+          </div>
+        </div>
+        <div class="craft-grid" id="craftGrid"></div>
+        <div class="craft-legend">
+          <span><span class="craft-swatch" style="background:#8fd18a;"></span>Grass — quick, no reward</span>
+          <span><span class="craft-swatch" style="background:#c99a63;"></span>Dirt — 1 hit</span>
+          <span><span class="craft-swatch" style="background:#b98650;"></span>Wood — 2 hits</span>
+          <span><span class="craft-swatch" style="background:#aab0bb;"></span>Stone — 3 hits</span>
+          <span><span class="craft-swatch" style="background:linear-gradient(135deg,#f2d34a,#d9a12a);"></span>Gooby Ore — 4 hits, rare</span>
+        </div>
+        <div class="game-overlay" id="craftOverlay">
+          <h3>⛏️ Goobycraft</h3>
+          <p>Click blocks to mine them. Grass clears instantly, everything else takes a few hits. Haul as many resources as you can in 45 seconds!</p>
+          <button class="btn btn-primary" id="craftStartBtn">Start Game</button>
         </div>
       </div>
     </div>
@@ -1237,6 +1539,9 @@ const ACHIEVEMENTS = [
   { id:'bubblepopper',name:'Bubble Popper',     icon:'🫧', desc:'Pop 100 gooby bubbles.',                      cond:s=>s.bubblePops>=100 },
   { id:'carrotcatcher',name:'Carrot Catcher',   icon:'🥕', desc:'Score 20+ in Carrot Catch.',                  cond:s=>s.highScores.carrot>=20 },
   { id:'whackchamp',  name:'Whack Champion',    icon:'🔨', desc:'Score 15+ in Whack-a-Gooby.',                 cond:s=>s.highScores.whack>=15 },
+  { id:'nightowl',    name:'Night Owl',         icon:'🌙', desc:'Survive a full night in Five Nights at Gooby.',cond:s=>s.highScores.fnag>=1 },
+  { id:'miner',       name:'Gooby Miner',       icon:'⛏️', desc:'Haul 30+ resources in one Goobycraft run.',     cond:s=>s.highScores.goobycraft>=30 },
+  { id:'meshmaster',  name:'Mesh Master',       icon:'🌀', desc:'Complete 10 mesh scans.',                      cond:s=>s.meshScans>=10 },
   { id:'ascended',    name:'Ascended',          icon:'🌟', desc:'Prestige for the first time.',                cond:s=>s.prestige>=1 }
 ];
 
@@ -1249,7 +1554,8 @@ const DEFAULT_STATE = {
   totalPets:0,
   bubblePops:0,
   prestige:0,
-  highScores:{ carrot:0, whack:0 },
+  meshScans:0,
+  highScores:{ carrot:0, whack:0, fnag:0, goobycraft:0 },
   settings:{ sound:true },
   lastSeen:Date.now()
 };
@@ -1320,14 +1626,31 @@ let offlineBonus = 0;
 let GOOBY_SRC = '';
 let saveTimeout = null;
 
-async function loadGame(){
-  let loaded = null;
+/* Saving works two ways so it survives leaving/closing the actual website:
+   localStorage is the primary, durable store on a real deployed page (persists
+   per-browser, no expiry, no network). window.storage (only present inside a
+   Claude artifact preview) is written to as well when available, but the game
+   never depends on it — a plain hosted copy on Vercel etc. still saves fine. */
+function readLocalSave(){
   try{
-    if(window.storage){
-      const r = await window.storage.get(SAVE_KEY);
-      if(r && r.value) loaded = JSON.parse(r.value);
-    }
-  }catch(e){ loaded = null; }
+    const raw = localStorage.getItem(SAVE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function writeLocalSave(json){
+  try{ localStorage.setItem(SAVE_KEY, json); return true; }catch(e){ console.warn('Gooby localStorage save failed', e); return false; }
+}
+
+async function loadGame(){
+  let loaded = readLocalSave();
+  if(!loaded){
+    try{
+      if(window.storage){
+        const r = await window.storage.get(SAVE_KEY);
+        if(r && r.value) loaded = JSON.parse(r.value);
+      }
+    }catch(e){ /* no save yet, or storage unavailable */ }
+  }
 
   state = clone(DEFAULT_STATE);
   if(loaded){
@@ -1339,7 +1662,13 @@ async function loadGame(){
     state.totalPets = loaded.totalPets || 0;
     state.bubblePops = loaded.bubblePops || 0;
     state.prestige = loaded.prestige || 0;
-    state.highScores = { carrot:(loaded.highScores&&loaded.highScores.carrot)||0, whack:(loaded.highScores&&loaded.highScores.whack)||0 };
+    state.meshScans = loaded.meshScans || 0;
+    state.highScores = {
+      carrot:(loaded.highScores&&loaded.highScores.carrot)||0,
+      whack:(loaded.highScores&&loaded.highScores.whack)||0,
+      fnag:(loaded.highScores&&loaded.highScores.fnag)||0,
+      goobycraft:(loaded.highScores&&loaded.highScores.goobycraft)||0
+    };
     state.settings = { sound: !(loaded.settings && loaded.settings.sound===false) };
 
     const lastSeen = loaded.lastSeen || Date.now();
@@ -1356,12 +1685,16 @@ async function loadGame(){
 
 async function saveGame(){
   state.lastSeen = Date.now();
+  const json = JSON.stringify(state);
+  const localOk = writeLocalSave(json);
+  let cloudOk = false;
   try{
     if(window.storage){
-      await window.storage.set(SAVE_KEY, JSON.stringify(state));
-      flashSaveIndicator();
+      await window.storage.set(SAVE_KEY, json);
+      cloudOk = true;
     }
-  }catch(e){ console.warn('Gooby save failed', e); }
+  }catch(e){ /* artifact storage not available here, localStorage still covers it */ }
+  if(localOk || cloudOk) flashSaveIndicator();
 }
 function scheduleSave(){
   clearTimeout(saveTimeout);
@@ -1448,6 +1781,9 @@ function renderAll(){
   renderPetCounters();
   document.getElementById('carrotHighDisplay').textContent = state.highScores.carrot;
   document.getElementById('whackHighDisplay').textContent = state.highScores.whack;
+  document.getElementById('fnagHighDisplay').textContent = state.highScores.fnag;
+  document.getElementById('craftHighDisplay').textContent = state.highScores.goobycraft;
+  document.getElementById('meshScanCount').textContent = state.meshScans;
   document.getElementById('soundToggle').textContent = state.settings.sound ? '🔊' : '🔇';
 }
 
@@ -1897,6 +2233,380 @@ function stopWhackGame(){
 }
 
 /* ============================================================
+   GAME: FIVE NIGHTS AT GOOBY
+   ============================================================ */
+let fnagRunning=false, fnagNight=1, fnagPower=100, fnagSecond=0, fnagTimer=null;
+let fnagDoors={ L:{closed:false, threat:false, threatTimer:null}, R:{closed:false, threat:false, threatTimer:null} };
+const FNAG_NIGHT_LENGTH = 60; // seconds = one 12am-6am night
+
+function fnagUpdateClock(){
+  const hour = Math.min(6, Math.floor(fnagSecond / (FNAG_NIGHT_LENGTH/6)));
+  const label = hour===0 ? '12:00 AM' : (hour+':00 AM');
+  document.getElementById('fnagClock').textContent = label;
+}
+function fnagUpdatePower(){
+  const pct = Math.max(0, Math.round(fnagPower));
+  const fill = document.getElementById('fnagPowerFill');
+  fill.style.width = pct+'%';
+  fill.classList.toggle('low', pct<25);
+  document.getElementById('fnagPowerPct').textContent = pct+'%';
+}
+function fnagSetDoorVisual(side){
+  const d = fnagDoors[side];
+  const doorEl = document.getElementById('fnagDoor'+side);
+  const btn = document.getElementById('fnagDoor'+side+'Btn');
+  const img = document.getElementById('fnagDoor'+side+'Img');
+  doorEl.classList.toggle('closed', d.closed);
+  doorEl.classList.toggle('threat', d.threat && !d.closed);
+  btn.textContent = d.closed ? 'Open Door' : 'Close Door';
+  img.src = GOOBY_SRC;
+}
+function toggleFnagDoor(side){
+  if(!fnagRunning) return;
+  const d = fnagDoors[side];
+  d.closed = !d.closed;
+  SFX.whack();
+  if(d.closed && d.threat){
+    d.threat = false;
+    clearTimeout(d.threatTimer);
+  }
+  fnagSetDoorVisual(side);
+}
+function fnagSpawnThreat(){
+  if(!fnagRunning) return;
+  const side = Math.random()<0.5 ? 'L' : 'R';
+  const d = fnagDoors[side];
+  if(!d.closed && !d.threat){
+    d.threat = true;
+    fnagSetDoorVisual(side);
+    const reactTime = Math.max(1800, 3600 - fnagNight*250);
+    d.threatTimer = setTimeout(()=>{
+      if(!fnagRunning) return;
+      if(d.threat && !d.closed){
+        fnagJumpscare(side);
+      }
+    }, reactTime);
+  }
+}
+function fnagJumpscare(side){
+  SFX.squeak();
+  endFnagNight(false);
+}
+function fnagTick(){
+  if(!fnagRunning) return;
+  fnagSecond += 0.2;
+  fnagUpdateClock();
+  const drainRate = 100/FNAG_NIGHT_LENGTH; // baseline drain across the whole night
+  let drain = drainRate*0.2;
+  if(fnagDoors.L.closed) drain += drainRate*0.2*1.6;
+  if(fnagDoors.R.closed) drain += drainRate*0.2*1.6;
+  fnagPower -= drain;
+  if(fnagPower <= 0){
+    fnagPower = 0;
+    fnagDoors.L.closed = false;
+    fnagDoors.R.closed = false;
+    fnagSetDoorVisual('L'); fnagSetDoorVisual('R');
+  }
+  fnagUpdatePower();
+  if(fnagSecond >= FNAG_NIGHT_LENGTH){
+    endFnagNight(true);
+  }
+}
+function startFnagGame(){
+  fnagNight = 1;
+  fnagStartNight();
+}
+function fnagStartNight(){
+  fnagPower = 100;
+  fnagSecond = 0;
+  fnagDoors = { L:{closed:false, threat:false, threatTimer:null}, R:{closed:false, threat:false, threatTimer:null} };
+  document.getElementById('fnagNight').textContent = fnagNight;
+  document.getElementById('fnagOverlay').classList.add('hidden');
+  fnagSetDoorVisual('L'); fnagSetDoorVisual('R');
+  fnagUpdateClock(); fnagUpdatePower();
+  fnagRunning = true;
+  clearInterval(fnagTimer);
+  fnagTimer = setInterval(()=>{
+    fnagTick();
+    if(fnagRunning && Math.random() < (0.02 + fnagNight*0.004)) fnagSpawnThreat();
+  }, 200);
+}
+function endFnagNight(survived){
+  fnagRunning = false;
+  clearInterval(fnagTimer);
+  clearTimeout(fnagDoors.L.threatTimer);
+  clearTimeout(fnagDoors.R.threatTimer);
+  const ov = document.getElementById('fnagOverlay');
+  ov.classList.remove('hidden');
+  if(survived){
+    const nightsSurvived = fnagNight;
+    if(nightsSurvived > state.highScores.fnag){
+      state.highScores.fnag = nightsSurvived;
+      document.getElementById('fnagHighDisplay').textContent = nightsSurvived;
+    }
+    const bonus = fnagNight*15;
+    state.boops += bonus; state.totalBoops += bonus;
+    renderTopStats();
+    ov.innerHTML = '<h3>🌅 6:00 AM — you made it!</h3><p>Survived night '+fnagNight+' and earned a bonus of '+bonus+' boops.</p><button class="btn btn-primary" id="fnagNextBtn">Start Night '+(fnagNight+1)+'</button>';
+    document.getElementById('fnagNextBtn').addEventListener('click', ()=>{ fnagNight++; fnagStartNight(); });
+  } else {
+    if(fnagNight-1 > state.highScores.fnag){
+      state.highScores.fnag = fnagNight-1;
+      document.getElementById('fnagHighDisplay').textContent = fnagNight-1;
+    }
+    ov.innerHTML = '<h3>😳 Boop! Gooby got you.</h3><p>You made it to night '+fnagNight+' before Gooby wandered all the way in.</p><button class="btn btn-primary" id="fnagRetryBtn">Try Again from Night 1</button>';
+    document.getElementById('fnagRetryBtn').addEventListener('click', startFnagGame);
+  }
+  checkAchievements();
+  scheduleSave();
+}
+function stopFnagGame(){
+  fnagRunning = false;
+  clearInterval(fnagTimer);
+  clearTimeout(fnagDoors.L.threatTimer);
+  clearTimeout(fnagDoors.R.threatTimer);
+}
+
+/* ============================================================
+   GAME: GOOBYCRAFT
+   ============================================================ */
+const CRAFT_BLOCK_TYPES = [
+  { type:'grass', hits:0, weight:34, yield:null },
+  { type:'dirt',  hits:1, weight:26, yield:null },
+  { type:'wood',  hits:2, weight:20, yield:'wood' },
+  { type:'stone', hits:3, weight:16, yield:'stone' },
+  { type:'ore',   hits:4, weight:4,  yield:'ore' }
+];
+let craftRunning=false, craftTimeLeft=45, craftTimer=null;
+let craftResources={ wood:0, stone:0, ore:0 };
+let craftBlocks=[];
+
+function craftPickType(){
+  const total = CRAFT_BLOCK_TYPES.reduce((a,t)=>a+t.weight,0);
+  let r = Math.random()*total;
+  for(const t of CRAFT_BLOCK_TYPES){ r -= t.weight; if(r<=0) return t; }
+  return CRAFT_BLOCK_TYPES[0];
+}
+function buildCraftGrid(){
+  const grid = document.getElementById('craftGrid');
+  grid.innerHTML = '';
+  craftBlocks = [];
+  const total = 30;
+  for(let i=0;i<total;i++){
+    const def = craftPickType();
+    const block = { def, hitsLeft: Math.max(1, def.hits) };
+    craftBlocks.push(block);
+    const el = document.createElement('div');
+    el.className = 'craft-block '+def.type;
+    el.innerHTML = '<div class="cb-bar"><div class="cb-bar-fill" style="width:100%"></div></div>';
+    el.addEventListener('click', ()=>mineBlock(i, el));
+    grid.appendChild(el);
+  }
+}
+function craftRespawnBlock(index, el){
+  const def = craftPickType();
+  craftBlocks[index] = { def, hitsLeft: Math.max(1, def.hits) };
+  el.className = 'craft-block '+def.type;
+  el.innerHTML = '<div class="cb-bar"><div class="cb-bar-fill" style="width:100%"></div></div>';
+}
+function craftUpdateResourceHud(){
+  document.getElementById('craftWood').textContent = craftResources.wood;
+  document.getElementById('craftStone').textContent = craftResources.stone;
+  document.getElementById('craftOre').textContent = craftResources.ore;
+}
+function mineBlock(index, el){
+  if(!craftRunning) return;
+  const block = craftBlocks[index];
+  if(!block) return;
+  block.hitsLeft--;
+  SFX.pop();
+  el.classList.add('breaking');
+  setTimeout(()=>el.classList.remove('breaking'), 100);
+  const bar = el.querySelector('.cb-bar-fill');
+  const totalHits = Math.max(1, block.def.hits);
+  if(bar) bar.style.width = Math.max(0, (block.hitsLeft/totalHits)*100)+'%';
+  if(block.hitsLeft <= 0){
+    if(block.def.yield){
+      craftResources[block.def.yield]++;
+      craftUpdateResourceHud();
+    }
+    craftRespawnBlock(index, el);
+  }
+}
+function startCraftGame(){
+  craftResources = { wood:0, stone:0, ore:0 };
+  craftTimeLeft = 45;
+  craftUpdateResourceHud();
+  document.getElementById('craftTime').textContent = craftTimeLeft;
+  document.getElementById('craftOverlay').classList.add('hidden');
+  buildCraftGrid();
+  craftRunning = true;
+  clearInterval(craftTimer);
+  craftTimer = setInterval(()=>{
+    craftTimeLeft--;
+    document.getElementById('craftTime').textContent = craftTimeLeft;
+    if(craftTimeLeft<=0) endCraftGame();
+  }, 1000);
+}
+function endCraftGame(){
+  craftRunning = false;
+  clearInterval(craftTimer);
+  const haul = craftResources.wood + craftResources.stone + craftResources.ore;
+  if(haul > state.highScores.goobycraft){
+    state.highScores.goobycraft = haul;
+    document.getElementById('craftHighDisplay').textContent = haul;
+  }
+  const bonus = craftResources.wood*1 + craftResources.stone*2 + craftResources.ore*5;
+  state.boops += bonus; state.totalBoops += bonus;
+  renderTopStats();
+  const ov = document.getElementById('craftOverlay');
+  ov.classList.remove('hidden');
+  ov.innerHTML = '<h3>⛏️ Time\'s up!</h3><p>Hauled '+haul+' resources ('+craftResources.wood+'🪵 '+craftResources.stone+'🪨 '+craftResources.ore+'✨) for a bonus of '+bonus+' boops.</p><button class="btn btn-primary" id="craftStartBtn">Play again</button>';
+  document.getElementById('craftStartBtn').addEventListener('click', startCraftGame);
+  checkAchievements();
+  scheduleSave();
+}
+function stopCraftGame(){
+  craftRunning = false;
+  clearInterval(craftTimer);
+}
+
+/* ============================================================
+   SATISFYING CORNER: MESH SCAN
+   ============================================================ */
+let meshRunning=false, meshAnim=null, meshPoints=[], meshRotation=0, meshPhase='idle', meshPhaseStart=0;
+const MESH_SCAN_MS = 2600, MESH_TEXTURE_MS = 2200;
+
+function switchSatisfyPane(which){
+  document.getElementById('satisfyBubbleBtn').classList.toggle('active', which==='bubblewrap');
+  document.getElementById('satisfyMeshBtn').classList.toggle('active', which==='meshscan');
+  document.getElementById('pane-bubblewrap').classList.toggle('active', which==='bubblewrap');
+  document.getElementById('pane-meshscan').classList.toggle('active', which==='meshscan');
+  if(which==='meshscan'){
+    sizeMeshCanvas();
+    if(!meshPoints.length) buildMeshPoints();
+    if(!meshAnim) meshAnim = requestAnimationFrame(meshRenderLoop);
+  } else if(meshAnim){
+    cancelAnimationFrame(meshAnim);
+    meshAnim = null;
+  }
+}
+function sizeMeshCanvas(){
+  const canvas = document.getElementById('meshCanvas');
+  const stage = document.getElementById('meshStage');
+  if(!canvas || !stage) return;
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  canvas.width = stage.clientWidth*dpr;
+  canvas.height = stage.clientHeight*dpr;
+}
+function buildMeshPoints(){
+  meshPoints = [];
+  // Roughly Gooby-shaped point cloud: body ellipsoid + head sphere + two ear blobs.
+  const pushBlob = (cx,cy,cz,rx,ry,rz,count)=>{
+    for(let i=0;i<count;i++){
+      const u = Math.random()*Math.PI*2, v = Math.acos(2*Math.random()-1);
+      const r = 0.7+Math.random()*0.3;
+      meshPoints.push({
+        x: cx + Math.sin(v)*Math.cos(u)*rx*r,
+        y: cy + Math.cos(v)*ry*r,
+        z: cz + Math.sin(v)*Math.sin(u)*rz*r,
+        order: Math.random()
+      });
+    }
+  };
+  pushBlob(0, 10, 0, 60, 46, 55, 260);      // body
+  pushBlob(0, -46, 6, 34, 32, 34, 150);     // head
+  pushBlob(-22, -78, 4, 13, 20, 10, 60);    // left ear
+  pushBlob(22, -78, 4, 13, 20, 10, 60);     // right ear
+  meshPoints.sort((a,b)=>a.order-b.order);
+}
+function meshRenderLoop(t){
+  const canvas = document.getElementById('meshCanvas');
+  if(!canvas){ meshAnim = null; return; }
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  meshRotation += 0.006;
+  const cx = w/2, cy = h*0.46, scale = Math.min(w,h)/280;
+
+  let revealFrac = 1, textureFrac = meshPhase==='done' ? 1 : 0;
+  if(meshPhase==='scanning'){
+    revealFrac = Math.min(1, (t-meshPhaseStart)/MESH_SCAN_MS);
+    if(revealFrac>=1){ meshPhase='texturing'; meshPhaseStart=t; startMeshTextureBar(); }
+  } else if(meshPhase==='texturing'){
+    revealFrac = 1;
+    textureFrac = Math.min(1, (t-meshPhaseStart)/MESH_TEXTURE_MS);
+    if(textureFrac>=1){ meshPhase='done'; meshFinishScan(); }
+  } else if(meshPhase==='idle'){
+    revealFrac = 1;
+  }
+
+  const visibleCount = Math.max(1, Math.floor(meshPoints.length*revealFrac));
+  for(let i=0;i<visibleCount;i++){
+    const p = meshPoints[i];
+    const cosR = Math.cos(meshRotation), sinR = Math.sin(meshRotation);
+    const rx = p.x*cosR - p.z*sinR;
+    const rz = p.x*sinR + p.z*cosR;
+    const persp = 260/(260+rz);
+    const sx = cx + rx*scale*persp;
+    const sy = cy + p.y*scale*persp;
+    const size = Math.max(1, 2.4*persp*dprScale());
+    ctx.beginPath();
+    ctx.arc(sx, sy, size, 0, Math.PI*2);
+    if(textureFrac > 0){
+      const g = Math.floor(180+70*Math.sin(p.x*0.05));
+      ctx.fillStyle = `rgba(${242-Math.floor(30*textureFrac)},${166+Math.floor(30*textureFrac)},${90+Math.floor(40*textureFrac)},${0.55+0.45*textureFrac})`;
+    } else {
+      ctx.fillStyle = 'rgba(220,208,240,0.85)';
+    }
+    ctx.fill();
+  }
+  meshAnim = requestAnimationFrame(meshRenderLoop);
+}
+function dprScale(){ return Math.min(2, window.devicePixelRatio||1); }
+function startMeshTextureBar(){
+  document.getElementById('meshProgressLabel').textContent = 'Texture generating…';
+}
+function startMeshScan(){
+  if(meshPhase==='scanning' || meshPhase==='texturing') return;
+  buildMeshPoints();
+  meshPhase = 'scanning';
+  meshPhaseStart = performance.now();
+  document.getElementById('meshProgressLabel').textContent = 'Generating mesh…';
+  document.getElementById('startMeshScanBtn').disabled = true;
+  meshProgressTick();
+}
+function meshProgressTick(){
+  const fill = document.getElementById('meshProgressFill');
+  if(!fill) return;
+  let pct = 0;
+  const now = performance.now();
+  if(meshPhase==='scanning'){
+    pct = Math.min(100, ((now-meshPhaseStart)/MESH_SCAN_MS)*50);
+  } else if(meshPhase==='texturing'){
+    pct = 50+Math.min(50, ((now-meshPhaseStart)/MESH_TEXTURE_MS)*50);
+  } else if(meshPhase==='done'){
+    pct = 100;
+  }
+  fill.style.width = pct+'%';
+  if(meshPhase==='scanning' || meshPhase==='texturing'){
+    requestAnimationFrame(meshProgressTick);
+  }
+}
+function meshFinishScan(){
+  state.meshScans++;
+  state.happiness = Math.min(100, state.happiness+3);
+  document.getElementById('meshScanCount').textContent = state.meshScans;
+  document.getElementById('meshProgressLabel').textContent = 'Scan complete ✓';
+  document.getElementById('startMeshScanBtn').disabled = false;
+  SFX.achievement();
+  spawnConfetti();
+  renderHappiness();
+  checkAchievements();
+  scheduleSave();
+}
+
+/* ============================================================
    TABS
    ============================================================ */
 function switchTab(tab){
@@ -1908,6 +2618,13 @@ function switchTab(tab){
   document.querySelectorAll('.tab-panel').forEach(p=>{
     p.classList.toggle('active', p.id==='tab-'+tab);
   });
+  if(tab==='petzone' && document.getElementById('pane-meshscan').classList.contains('active')){
+    sizeMeshCanvas();
+    if(!meshAnim) meshAnim = requestAnimationFrame(meshRenderLoop);
+  } else if(tab!=='petzone' && meshAnim){
+    cancelAnimationFrame(meshAnim);
+    meshAnim = null;
+  }
   window.scrollTo({ top:0, behavior:'smooth' });
 }
 
@@ -1970,6 +2687,7 @@ function setupListeners(){
     if(!confirm('This will erase all Gooby progress forever. Are you sure?')) return;
     state = clone(DEFAULT_STATE);
     state.lastSeen = Date.now();
+    try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
     try{ if(window.storage) await window.storage.delete(SAVE_KEY); }catch(e){}
     renderAll();
     buildBubbleGrid();
@@ -1991,9 +2709,8 @@ function setupListeners(){
 
   // Games menu
   document.getElementById('playCarrotBtn').addEventListener('click', ()=>{
+    hideAllGameAreas();
     document.getElementById('carrotGameArea').classList.remove('hidden');
-    document.getElementById('whackGameArea').classList.add('hidden');
-    stopWhackGame();
     document.getElementById('carrotGameArea').scrollIntoView({behavior:'smooth', block:'nearest'});
   });
   document.getElementById('closeCarrotBtn').addEventListener('click', ()=>{
@@ -2019,9 +2736,8 @@ function setupListeners(){
   carrotField.addEventListener('touchmove', e=>{ if(carrotRunning) movePaddleToClientX(e.touches[0].clientX); }, {passive:true});
 
   document.getElementById('playWhackBtn').addEventListener('click', ()=>{
+    hideAllGameAreas();
     document.getElementById('whackGameArea').classList.remove('hidden');
-    document.getElementById('carrotGameArea').classList.add('hidden');
-    stopCarrotGame();
     document.getElementById('whackGameArea').scrollIntoView({behavior:'smooth', block:'nearest'});
   });
   document.getElementById('closeWhackBtn').addEventListener('click', ()=>{
@@ -2029,6 +2745,55 @@ function setupListeners(){
     document.getElementById('whackGameArea').classList.add('hidden');
   });
   document.getElementById('whackStartBtn').addEventListener('click', startWhackGame);
+
+  // Five Nights at Gooby
+  document.getElementById('playFnagBtn').addEventListener('click', ()=>{
+    hideAllGameAreas();
+    document.getElementById('fnagGameArea').classList.remove('hidden');
+    document.getElementById('fnagGameArea').scrollIntoView({behavior:'smooth', block:'nearest'});
+  });
+  document.getElementById('closeFnagBtn').addEventListener('click', ()=>{
+    stopFnagGame();
+    document.getElementById('fnagGameArea').classList.add('hidden');
+  });
+  document.getElementById('fnagStartBtn').addEventListener('click', startFnagGame);
+  document.getElementById('fnagDoorLBtn').addEventListener('click', ()=>toggleFnagDoor('L'));
+  document.getElementById('fnagDoorRBtn').addEventListener('click', ()=>toggleFnagDoor('R'));
+
+  // Goobycraft
+  document.getElementById('playCraftBtn').addEventListener('click', ()=>{
+    hideAllGameAreas();
+    document.getElementById('craftGameArea').classList.remove('hidden');
+    document.getElementById('craftGameArea').scrollIntoView({behavior:'smooth', block:'nearest'});
+  });
+  document.getElementById('closeCraftBtn').addEventListener('click', ()=>{
+    stopCraftGame();
+    document.getElementById('craftGameArea').classList.add('hidden');
+  });
+  document.getElementById('craftStartBtn').addEventListener('click', startCraftGame);
+
+  // Satisfying corner toggle
+  document.getElementById('satisfyBubbleBtn').addEventListener('click', ()=>switchSatisfyPane('bubblewrap'));
+  document.getElementById('satisfyMeshBtn').addEventListener('click', ()=>switchSatisfyPane('meshscan'));
+  document.getElementById('startMeshScanBtn').addEventListener('click', startMeshScan);
+  window.addEventListener('resize', sizeMeshCanvas);
+
+  // Make sure progress is saved the moment someone leaves/closes/switches tabs,
+  // not just on the debounced timer, so nothing is lost when they leave the site.
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveGame(); });
+  window.addEventListener('pagehide', ()=>saveGame());
+  window.addEventListener('beforeunload', ()=>saveGame());
+}
+
+function hideAllGameAreas(){
+  stopCarrotGame();
+  stopWhackGame();
+  stopFnagGame();
+  stopCraftGame();
+  document.getElementById('carrotGameArea').classList.add('hidden');
+  document.getElementById('whackGameArea').classList.add('hidden');
+  document.getElementById('fnagGameArea').classList.add('hidden');
+  document.getElementById('craftGameArea').classList.add('hidden');
 }
 
 /* ============================================================
