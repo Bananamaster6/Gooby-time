@@ -2945,9 +2945,9 @@ function gvgHostUpdate(dt){
   if(!multi.started||multi.challenge!=='gun')return;
   const now=Date.now();const speed=6.5;
   const hostPlayer=multi.peer&&multi.players.get(multi.peer.id);
-  if(hostPlayer){ const k=gvgInputKeys(); gvg.input.f=k.f; gvg.input.r=k.r; hostPlayer._gvgInput={f:k.f,r:k.r,jump:!!gvg.input.jump,yaw:gvg.input.yaw,pitch:gvg.input.pitch,shoot:gvg.input.shoot,reload:gvg.input.reload}; gvg.input.jump=false; }
+  if(hostPlayer){ const k=gvgInputKeys(); gvg.input.f=k.f; gvg.input.r=k.r; hostPlayer._gvgInput={f:k.f,r:k.r,jump:!!gvg.input.jump,yaw:gvg.input.yaw,pitch:gvg.input.pitch,shoot:gvg.input.shoot,reload:gvg.input.reload}; hostPlayer._gvgInputAt=now; gvg.input.jump=false; }
   for(const p of multi.players.values()){
-    if(!p.gvg)continue;const g=p.gvg;if(g.dead)continue;const inp=p._gvgInput||{f:0,r:0,jump:false,yaw:g.yaw,pitch:0,shoot:false,reload:false};g.yaw=inp.yaw;g.pitch=inp.pitch; if(inp.jump&&g.y<=0.001)g.vy=6.8;let fx=Math.sin(g.yaw),fz=Math.cos(g.yaw),rx=Math.cos(g.yaw),rz=-Math.sin(g.yaw);let mx=fx*(inp.f||0)+rx*(inp.r||0),mz=fz*(inp.f||0)+rz*(inp.r||0);const len=Math.hypot(mx,mz)||1;if(Math.hypot(mx,mz)>1){mx/=len;mz/=len;}const nx=Math.max(-38,Math.min(38,g.x+mx*speed*dt)),nz=Math.max(-26,Math.min(26,g.z+mz*speed*dt));if(!gvgMoveBlocked(nx,g.z))g.x=nx;if(!gvgMoveBlocked(g.x,nz))g.z=nz;g.vy-=16*dt;g.y+=g.vy*dt;if(g.y<0){g.y=0;g.vy=0;}if(g.reloadUntil&&g.reloadUntil<=now){g.ammo=g.mag;g.reloadUntil=0;}
+    if(!p.gvg)continue;const g=p.gvg;if(g.dead)continue;const freshInput=(p._gvgInputAt&&now-p._gvgInputAt<220);const inp=freshInput?(p._gvgInput||{f:0,r:0,jump:false,yaw:g.yaw,pitch:0,shoot:false,reload:false}):{f:0,r:0,jump:false,yaw:g.yaw,pitch:0,shoot:false,reload:false};g.yaw=inp.yaw;g.pitch=inp.pitch; if(inp.jump&&g.y<=0.001)g.vy=6.8;let fx=Math.sin(g.yaw),fz=Math.cos(g.yaw),rx=Math.cos(g.yaw),rz=-Math.sin(g.yaw);let mx=fx*(inp.f||0)+rx*(inp.r||0),mz=fz*(inp.f||0)+rz*(inp.r||0);const len=Math.hypot(mx,mz)||1;if(Math.hypot(mx,mz)>1){mx/=len;mz/=len;}const nx=Math.max(-38,Math.min(38,g.x+mx*speed*dt)),nz=Math.max(-26,Math.min(26,g.z+mz*speed*dt));if(!gvgMoveBlocked(nx,g.z))g.x=nx;if(!gvgMoveBlocked(g.x,nz))g.z=nz;g.vy-=16*dt;g.y+=g.vy*dt;if(g.y<0){g.y=0;g.vy=0;}if(g.reloadUntil&&g.reloadUntil<=now){g.ammo=g.mag;g.reloadUntil=0;}
     if(!g.reloadUntil && inp.reload && g.ammo<g.mag) g.reloadUntil=now+1200;
     if(!g.reloadUntil && g.ammo<=0) g.reloadUntil=now+1200;
     if(inp.shoot&&(now-(p._lastShot||0)>180)&&!g.reloadUntil&&g.ammo>0){p._lastShot=now;const shot=gvgDoShoot(p);if(shot){multiSendAll({type:'gvgShot',shooterId:p.id,end:shot});if(p.id===multi.peer?.id)gvgShowShotTrace(p.id,shot);}if(p.id===multi.peer?.id)gvgTriggerShotFX();}}
@@ -2956,7 +2956,7 @@ function gvgHostUpdate(dt){
 }
 function multiBroadcastGvg(force){if(!multi.isHost)return;const now=Date.now();if(!force&&now-(multi.gvgLastBroadcast||0)<66)return;multi.gvgLastBroadcast=now;const s=gvgMakeSnapshot();multiSendAll(s);gvgApplySnapshot(s);}
 function gvgApplySnapshot(s){if(!s||s.challenge!=='gun')return;gvgShowPanel(true);multi.started=!!s.started;multi.challenge='gun';multi.startedAt=s.startedAt||multi.startedAt;multi.winner=s.winner||null;(s.players||[]).forEach(q=>{const p=multi.players.get(q.id)||{id:q.id,name:q.name};p.name=q.name;p.gvg=q; p.score=q.score||0;p.kills=q.kills||0;p.x=q.x;p.y=q.z;multi.players.set(q.id,p);});multiRenderLobbyList();multiRenderHud();gvgUpdateHud();gvgUpdateRemoteMeshes();if(multi.winner)multiShowResult(multi.winner);}
-function gvgClientSendInput(){if(!multi.hostConn?.open||multi.isHost)return;const m=gvg.input;const now=Date.now();if(now-gvg.lastSend<50)return;gvg.lastSend=now;multiSend(multi.hostConn,{type:'gvgInput',f:m.f,r:m.r,jump:!!m.jump,yaw:m.yaw,pitch:m.pitch,shoot:m.shoot,reload:m.reload});m.shoot=false;m.reload=false;m.jump=false;}
+function gvgClientSendInput(){if(!multi.hostConn?.open||multi.isHost)return;const m=gvg.input,kr=gvgInputKeys(),now=Date.now();if(now-gvg.lastSend<40)return;gvg.lastSend=now;multiSend(multi.hostConn,{type:'gvgInput',f:kr.f,r:kr.r,jump:!!m.jump,yaw:m.yaw,pitch:m.pitch,shoot:m.shoot,reload:m.reload});m.f=kr.f;m.r=kr.r;m.shoot=false;m.reload=false;m.jump=false;}
 
 function multiHostUpdate(dt){
   if(multi.challenge==='gun'){ gvgHostUpdate(dt); return; }
@@ -3079,7 +3079,7 @@ function multiHostHandle(conn,msg){
     return;
   }
   if(msg.type==='gvgInput'){
-    const p=multi.players.get(conn.peer);if(!p)return;p._gvgInput={f:Math.max(-1,Math.min(1,Number(msg.f)||0)),r:Math.max(-1,Math.min(1,Number(msg.r)||0)),yaw:Number(msg.yaw)||0,pitch:Number(msg.pitch)||0,shoot:!!msg.shoot,reload:!!msg.reload};return;
+    const p=multi.players.get(conn.peer);if(!p)return;p._gvgInput={f:Math.max(-1,Math.min(1,Number(msg.f)||0)),r:Math.max(-1,Math.min(1,Number(msg.r)||0)),jump:!!msg.jump,yaw:Number.isFinite(Number(msg.yaw))?Number(msg.yaw):0,pitch:Number.isFinite(Number(msg.pitch))?Number(msg.pitch):0,shoot:!!msg.shoot,reload:!!msg.reload};p._gvgInputAt=Date.now();return;
   }
 }
 function multiSendSnapshotTo(conn){
@@ -3292,6 +3292,7 @@ function gvgInstallPointer(){
   });
   c.addEventListener('mousedown',e=>{gvgEnsureAudio();if(e.button===0){gvg.input.shoot=true;gvgTriggerShotFX();}});
   document.addEventListener('mouseup',e=>{if(e.button===0)gvg.input.shoot=false;});
+  document.addEventListener('pointerlockchange',()=>{if(document.pointerLockElement!==c){gvg.input.shoot=false;gvg.input.f=0;gvg.input.r=0;}});
   c.addEventListener('contextmenu',e=>e.preventDefault());
   document.addEventListener('keydown',e=>{
     const active=document.getElementById('tab-multiplayer')?.classList.contains('active') && gvg.rendering;
@@ -3325,7 +3326,7 @@ function gvgUpdateRemoteMeshes(){
 }
 
 function gvg3DFrame(){
-  gvg.frame++;const kr=gvgInputKeys();gvg.input.f=kr.f;gvg.input.r=kr.r;
+  gvg.frame++;const kr=gvgInputKeys();gvg.input.f=kr.f;gvg.input.r=kr.r;if(!gvg.rendering){gvg.input.f=0;gvg.input.r=0;gvg.input.shoot=false;gvg.input.reload=false;}
   const me=multi.players.get(multi.peer?.id);
   if(me?.gvg){
     const q=me.gvg;gvg.camera.position.x=q.x;gvg.camera.position.y=2.8+(q.y||0);gvg.camera.position.z=q.z;gvg.camera.rotation.y=q.yaw;gvg.camera.rotation.x=q.pitch;
