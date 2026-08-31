@@ -3168,11 +3168,11 @@ async function gvgInit3D(){
   gvg.canvas=document.getElementById('gvgCanvas'); if(!gvg.canvas||!window.BABYLON)return;
   gvg.engine=new BABYLON.Engine(gvg.canvas,false,{preserveDrawingBuffer:false,stencil:false,antialias:false});
   gvg.engine.setHardwareScalingLevel(Math.max(1,Math.min(1.5,window.devicePixelRatio||1)));
-  gvg.scene=new BABYLON.Scene(gvg.engine);gvg.scene.clearColor=new BABYLON.Color4(.025,.02,.04,1);
+  gvg.scene=new BABYLON.Scene(gvg.engine);gvg.scene.clearColor=new BABYLON.Color4(.055,.045,.08,1);gvg.scene.ambientColor=new BABYLON.Color3(.22,.18,.28);
   gvg.camera=new BABYLON.UniversalCamera('gvgCam',new BABYLON.Vector3(0,2.8,-8),gvg.scene);gvg.camera.fov=.95;gvg.camera.minZ=.05;gvg.camera.maxZ=200;gvg.camera.attachControl(gvg.canvas,true);gvg.camera.inputs.clear();
   const glow=new BABYLON.GlowLayer('glow',gvg.scene);glow.intensity=.08;
-  const hemi=new BABYLON.HemisphericLight('hemi',new BABYLON.Vector3(0,1,0),gvg.scene);hemi.intensity=.26;
-  const fill=new BABYLON.PointLight('fill',new BABYLON.Vector3(0,7,0),gvg.scene);fill.intensity=3.8;fill.range=30;fill.diffuse=new BABYLON.Color3(.28,.22,.65);
+  const hemi=new BABYLON.HemisphericLight('hemi',new BABYLON.Vector3(0,1,0),gvg.scene);hemi.intensity=.62;hemi.diffuse=new BABYLON.Color3(.72,.68,.82);hemi.groundColor=new BABYLON.Color3(.16,.14,.22);
+  const fill=new BABYLON.PointLight('fill',new BABYLON.Vector3(0,8,0),gvg.scene);fill.intensity=7.2;fill.range=42;fill.diffuse=new BABYLON.Color3(.38,.30,.72);const moon=new BABYLON.DirectionalLight('moon',new BABYLON.Vector3(-.25,-1,.2),gvg.scene);moon.intensity=.45;moon.diffuse=new BABYLON.Color3(.62,.58,.85);
   gvgMakeMap();
   try{
     const gr=await BABYLON.SceneLoader.ImportMeshAsync('', 'assets/', 'gubby.glb', gvg.scene);
@@ -3182,16 +3182,16 @@ async function gvgInit3D(){
     const muzzleLight=new BABYLON.PointLight('muzzleLight',new BABYLON.Vector3(0,0,0),gvg.scene);muzzleLight.parent=muzzle;muzzleLight.intensity=0;muzzleLight.range=5;muzzleLight.diffuse=new BABYLON.Color3(1,.72,.3);gvg.muzzleLight=muzzleLight;
     const flashMat=new BABYLON.StandardMaterial('muzzleFlashMat',gvg.scene);flashMat.emissiveColor=new BABYLON.Color3(1,.72,.25);flashMat.diffuseColor=new BABYLON.Color3(1,.55,.1);
     const flash=BABYLON.MeshBuilder.CreateSphere('muzzleFlash',{diameter:.16,segments:6},gvg.scene);flash.parent=muzzle;flash.material=flashMat;flash.setEnabled(false);gvg.muzzleFlash=flash;
-    const fl=new BABYLON.SpotLight('flashlight',new BABYLON.Vector3(0,0,0),new BABYLON.Vector3(0,0,1),.62,2.0,gvg.scene);fl.parent=gvg.camera;fl.position=new BABYLON.Vector3(.0,.0,.15);fl.direction=new BABYLON.Vector3(0,0,1);fl.intensity=7;fl.range=34;fl.diffuse=new BABYLON.Color3(0.82,0.9,1);fl.specular=new BABYLON.Color3(.4,.4,.5);gvg.flashlight=fl;
+    const fl=new BABYLON.SpotLight('flashlight',new BABYLON.Vector3(0,0,0),new BABYLON.Vector3(0,0,1),.82,1.6,gvg.scene);fl.parent=gvg.camera;fl.position=new BABYLON.Vector3(.0,.0,.15);fl.direction=new BABYLON.Vector3(0,0,1);fl.intensity=11;fl.range=40;fl.diffuse=new BABYLON.Color3(0.82,0.9,1);fl.specular=new BABYLON.Color3(.4,.4,.5);gvg.flashlight=fl;
   }catch(e){console.warn('3D model load failed',e);}
   gvg.loaded=true;gvg.engine.runRenderLoop(()=>{if(gvg.rendering){gvg3DFrame();gvg.scene.render();}});window.addEventListener('resize',()=>gvg.engine?.resize());
   gvgInstallPointer();
 }
 function gvgMakeMap(){
   const mat=(name,c,emis=0)=>{const m=new BABYLON.StandardMaterial(name,gvg.scene);m.diffuseColor=BABYLON.Color3.FromHexString(c);m.specularColor=new BABYLON.Color3(.03,.03,.03);if(emis)m.emissiveColor=BABYLON.Color3.FromHexString(c).scale(emis);return m;};
-  const floorMat=mat('floor','#11101a');
+  const floorMat=mat('floor','#1b1927');
   const floor=BABYLON.MeshBuilder.CreateGround('floor',{width:80,height:56},gvg.scene);floor.material=floorMat;
-  const wallMat=mat('wall','#252236'); const coverMat=mat('cover','#30284a'); const glowMat=mat('stripe','#2f2170',0.65); const accentMat=mat('accent','#4b2b8f',0.75);
+  const wallMat=mat('wall','#332e48'); const coverMat=mat('cover','#40365c'); const glowMat=mat('stripe','#2f2170',0.65); const accentMat=mat('accent','#4b2b8f',0.75);
   const walls=[
     [-40,2.0,0,1,4,56],[40,2.0,0,1,4,56],[0,2.0,-28,80,4,1],[0,2.0,28,80,4,1],
     [-20,2.0,-15,18,4,1.2],[20,2.0,-15,18,4,1.2],[-20,2.0,15,18,4,1.2],[20,2.0,15,18,4,1.2],
@@ -3205,7 +3205,7 @@ function gvgMakeMap(){
   });
   // Dark neon-lane lights: enough for silhouettes without washing out the map.
   const lamps=[[-33,-21],[0,-21],[33,-21],[-33,0],[0,0],[33,0],[-33,21],[0,21],[33,21]];
-  lamps.forEach((pt,i)=>{const l=BABYLON.MeshBuilder.CreateCylinder('lamp'+i,{diameter:.28,height:.08,tessellation:12},gvg.scene);l.position=new BABYLON.Vector3(pt[0],3.93,pt[1]);l.material=accentMat;const p=new BABYLON.PointLight('laneLight'+i,new BABYLON.Vector3(pt[0],3.8,pt[1]),gvg.scene);p.intensity=2.2;p.range=9;p.diffuse=new BABYLON.Color3(.30,.20,.75);});
+  lamps.forEach((pt,i)=>{const l=BABYLON.MeshBuilder.CreateCylinder('lamp'+i,{diameter:.28,height:.08,tessellation:12},gvg.scene);l.position=new BABYLON.Vector3(pt[0],3.93,pt[1]);l.material=accentMat;const p=new BABYLON.PointLight('laneLight'+i,new BABYLON.Vector3(pt[0],3.8,pt[1]),gvg.scene);p.intensity=4.2;p.range=13;p.diffuse=new BABYLON.Color3(.30,.20,.75);});
   // Low barriers / crates for close fights and cover.
   const crates=[[-31,1,-8],[31,1,8],[-31,1,8],[31,1,-8],[-22,1,7],[22,1,-7],[0,1,-22],[0,1,22]];
   crates.forEach((pt,i)=>{const c=BABYLON.MeshBuilder.CreateBox('crate'+i,{width:3.5,height:2,depth:3.5},gvg.scene);c.position=new BABYLON.Vector3(pt[0],pt[1],pt[2]);c.material=coverMat;gvg.obstacles.push({x:pt[0],z:pt[2],w:3.5,d:3.5});});
