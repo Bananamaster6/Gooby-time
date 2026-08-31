@@ -1177,6 +1177,17 @@
   .multi-result h3{font-size:28px;color:var(--plum-dark);margin-bottom:8px;}
   .multi-result p{font-size:14px;color:var(--ink-soft);line-height:1.5;}
   .multi-stage{position:relative;}
+  .gvg-panel{display:none;background:#151321;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.08);box-shadow:0 4px 0 var(--shadow-soft);}
+  .gvg-panel.show{display:block;}
+  .gvg-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;color:#efe9ff;font:700 12px var(--font-body);background:#211c2e;}
+  .gvg-topbar b:first-child{color:#fff;}
+  .gvg-stats{display:flex;gap:14px;flex-wrap:wrap;color:#d7ccef;font-family:var(--font-mono);}
+  .gvg-stage{position:relative;min-height:520px;background:#0f0d16;}
+  #gvgCanvas{display:block;width:100%;height:min(70vh,620px);min-height:440px;touch-action:none;cursor:crosshair;}
+  .gvg-crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:700 26px/1 JetBrains Mono,monospace;color:rgba(255,255,255,.85);text-shadow:0 0 8px rgba(255,255,255,.4);pointer-events:none;}
+  .gvg-reload{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);padding:7px 12px;border-radius:999px;background:rgba(20,15,30,.75);color:#fff;font:800 12px var(--font-mono);letter-spacing:.08em;display:none;pointer-events:none;}
+  .gvg-reload.show{display:block;}
+  .gvg-help{padding:8px 12px;text-align:center;color:#b7abc9;font-size:11px;background:#211c2e;}
   .multi-disconnect{margin-top:10px;width:100%;}
   @media(max-width:900px){.multi-wrap{grid-template-columns:1fr;}.multi-actions{grid-template-columns:1fr 1fr;}}
 
@@ -1347,6 +1358,7 @@
             <option value="tag">🏷️ Gooby Tag</option>
             <option value="crown">👑 Crown</option>
             <option value="survival">⏱️ Survival</option>
+            <option value="gun">🔫 Goob vs Goob — Laser Tag</option>
           </select>
           <button class="btn btn-primary" id="multiStartBtn" style="width:100%;justify-content:center;margin-top:8px;">Start challenge</button>
           <div class="multi-waiting" id="multiWaiting">Invite friends with the code above. They can join before you start.</div>
@@ -1364,6 +1376,14 @@
           <div class="multi-count" id="multiChallengeCount">Waiting for host…</div>
         </div>
         <div class="multi-stage">
+          <div id="goobVsGoobPanel" class="gvg-panel">
+            <div class="gvg-topbar">
+              <div><b>🔫 Goob vs Goob</b><span id="gvgStatus"> Waiting for the round to start…</span></div>
+              <div class="gvg-stats"><span>🛡️ <b id="gvgShield">100</b></span><span>❤️ <b id="gvgHealth">100</b></span><span>🔫 <b id="gvgAmmo">12</b>/<span id="gvgMag">12</span></span><span>💥 <b id="gvgKills">0</b></span></div>
+            </div>
+            <div class="gvg-stage"><canvas id="gvgCanvas" width="960" height="600"></canvas><div class="gvg-crosshair">+</div><div class="gvg-reload" id="gvgReload">RELOADING…</div></div>
+            <div class="gvg-help">WASD move · mouse look · click fire · R reload · ESC release mouse</div>
+          </div>
           <canvas id="multiCanvas" width="900" height="600"></canvas>
           <div class="multi-result" id="multiResult">
             <div class="multi-result-inner">
@@ -1629,6 +1649,8 @@
   </footer>
 </div>
 
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 
 <script>
@@ -2753,7 +2775,18 @@ let multi={
   players:new Map(), foods:[], powerups:[], started:false, running:false, challenge:null,
   startedAt:0, winner:null, lastBroadcast:0, lastInputSent:0, keys:Object.create(null),
   steer:{x:0,y:0}, lastFrame:0, anim:null, world:{w:2600,h:1800}, nextEntityId:1,
-  taggerId:null, crown:{x:1300,y:900,r:44,carrier:null}, statusTimer:null
+  taggerId:null, crown:{x:1300,y:900,r:44,carrier:null}, statusTimer:null, uiStamp:0, listKey:''
+};
+
+
+// 3D Goob vs Goob shared game state. The host is authoritative.
+let gvg={
+  engine:null,scene:null,camera:null,canvas:null,localRoot:null,gunRoot:null,remote:new Map(),
+  assets:{gooby:null,gun:null},loaded:false,rendering:false,lastFrame:0,
+  input:{f:0,r:0,yaw:0,pitch:0,shoot:false,reload:false},lastSend:0,locked:false,localId:null,
+  me:{x:0,z:0,yaw:0,pitch:0,shield:100,health:100,ammo:12,mag:12,kills:0,dead:false,reloadUntil:0},
+  world:{w:42,d:30}, obstacles:[],
+  muzzleUntil:0
 };
 
 const MULTI_CHALLENGES={
@@ -2762,7 +2795,8 @@ const MULTI_CHALLENGES={
   giant:{label:'🍄 GIANT GOOBY — reach 2.8× size',goal:2.8,desc:'Eat enough food to become the biggest Gooby.'},
   tag:{label:'🏷️ GOOBY TAG — stay untagged and tag others',goal:75,desc:'One player starts as IT. Touch another Gooby to pass the tag.'},
   crown:{label:'👑 CROWN — hold the crown for 35 seconds',goal:35,desc:'Carry the crown and keep it away from everyone else.'},
-  survival:{label:'⏱️ SURVIVAL — last 90 seconds',goal:90,desc:'Grow, collect, and survive the whole round.'}
+  survival:{label:'⏱️ SURVIVAL — last 90 seconds',goal:90,desc:'Grow, collect, and survive the whole round.'},
+  gun:{label:'🔫 GOOB VS GOOB — first to 7 eliminations',goal:7,desc:'3D laser-tag arena. Infinite ammo, reload often, and protect your shield.'}
 };
 
 function multiCode(){return Math.random().toString(36).slice(2,8).toUpperCase();}
@@ -2789,15 +2823,15 @@ function multiNewPlayer(id,name,isLocal){
   const p=multiSpawnPoint();
   return {id,name:name||'Gooby',x:p.x,y:p.y,r:44,score:0,orbs:0,kills:0,alive:true,isLocal:!!isLocal,tagged:false,crownTime:0,hue:Math.floor(Math.random()*360),vx:0,vy:0,_input:{x:0,y:0}};
 }
-function multiAddPlayer(p){multi.players.set(p.id,p);multiRenderLobbyList();}
-function multiRemovePlayer(id){multi.players.delete(id);multiRenderLobbyList();}
+function multiAddPlayer(p){multi.players.set(p.id,p);multiRenderLobbyList(true);}
+function multiRemovePlayer(id){multi.players.delete(id);multiRenderLobbyList(true);}
 function multiSend(conn,data){try{if(conn&&conn.open)conn.send(data);}catch(e){}}
 function multiSendAll(data){multi.conns.forEach(c=>multiSend(c,data));}
 function multiSendSnapshot(conn){if(!conn)return;multiSend(conn,{type:'snapshot',started:multi.started,challenge:multi.challenge,startedAt:multi.startedAt,winner:multi.winner,taggerId:multi.taggerId,crown:multi.crown,players:[...multi.players.values()].map(multiPublicPlayer),foods:multi.foods,powerups:multi.powerups});}
 function multiPublicPlayer(p){return {id:p.id,name:p.name,x:p.x,y:p.y,r:p.r,score:p.score,orbs:p.orbs,kills:p.kills||0,alive:p.alive,tagged:p.tagged,crownTime:p.crownTime,hue:p.hue};}
 function multiResetArena(){
   multi.foods=[]; multi.powerups=[]; multi.nextEntityId=1;
-  for(let i=0;i<110;i++)multi.foods.push({id:multi.nextEntityId++,x:80+Math.random()*(multi.world.w-160),y:80+Math.random()*(multi.world.h-160),v:1+Math.floor(Math.random()*4),kind:Math.random()<.12?'gold':'normal'});
+  for(let i=0;i<70;i++)multi.foods.push({id:multi.nextEntityId++,x:80+Math.random()*(multi.world.w-160),y:80+Math.random()*(multi.world.h-160),v:1+Math.floor(Math.random()*4),kind:Math.random()<.12?'gold':'normal'});
   for(let i=0;i<12;i++)multi.powerups.push({id:multi.nextEntityId++,x:120+Math.random()*(multi.world.w-240),y:120+Math.random()*(multi.world.h-240),kind:['speed','mega','shield'][Math.floor(Math.random()*3)],taken:false});
   [...multi.players.values()].forEach(p=>{const q=multiSpawnPoint();p.x=q.x;p.y=q.y;p.r=44;p.score=0;p.orbs=0;p.kills=0;p.alive=true;p.tagged=false;p.crownTime=0;p._input={x:0,y:0};});
   multi.crown={x:1300,y:900,r:44,carrier:null};
@@ -2809,8 +2843,8 @@ function multiStartChallenge(type){
   if(multi.players.size<1){multiSetStatus('You need at least one player in the lobby.');return;}
   multi.challenge=type;multi.started=true;multi.running=true;multi.startedAt=Date.now();multi.winner=null;
   document.getElementById('multiResult').classList.remove('show');
-  multiResetArena();
-  multiSetStatus('Challenge started! Move with WASD, arrows, or your mouse/finger.');
+  if(type==='gun'){ gvgHostReset(); } else { multiResetArena(); }
+  multiSetStatus(type==='gun'?'Goob vs Goob started! Click the arena to lock your mouse.':'Challenge started! Move with WASD, arrows, or your mouse/finger.');
   multiBroadcastSnapshot(true);
 }
 function multiProgress(p){
@@ -2823,6 +2857,7 @@ function multiProgress(p){
   else if(multi.challenge==='tag')value=p.id===multi.taggerId?0:Math.max(0,(Date.now()-multi.startedAt)/1000);
   else if(multi.challenge==='crown')value=p.crownTime;
   else if(multi.challenge==='survival')value=(Date.now()-multi.startedAt)/1000;
+  else if(multi.challenge==='gun')value=p.kills||0;
   return {value,target:goal};
 }
 function multiCheckWinner(){
@@ -2843,7 +2878,43 @@ function multiProgressReached(p){
   const pr=multiProgress(p);
   return pr.value>=pr.target;
 }
+function gvgSpawnPoint(){
+  const pts=[[-15,-10],[15,-10],[-15,10],[15,10],[-10,0],[10,0]];const p=pts[Math.floor(Math.random()*pts.length)];return{x:p[0],z:p[1]};
+}
+function gvgHostReset(){
+  gvg.me={x:0,z:0,yaw:0,pitch:0,shield:100,health:100,ammo:12,mag:12,kills:0,dead:false,reloadUntil:0};
+  const ps=[...multi.players.values()];ps.forEach((p,i)=>{const q=gvgSpawnPoint();p.x=q.x;p.y=q.z;p.score=0;p.kills=0;p.gvg={x:q.x,z:q.z,yaw:i%2?Math.PI:0,pitch:0,shield:100,health:100,ammo:12,mag:12,reloadUntil:0,dead:false};});
+}
+function gvgPublicPlayer(p){return {id:p.id,name:p.name,x:p.gvg?.x||0,z:p.gvg?.z||0,yaw:p.gvg?.yaw||0,pitch:p.gvg?.pitch||0,shield:p.gvg?.shield??100,health:p.gvg?.health??100,ammo:p.gvg?.ammo??12,mag:p.gvg?.mag??12,reloadUntil:p.gvg?.reloadUntil||0,dead:!!p.gvg?.dead,kills:p.kills||0,score:p.score||0};}
+function gvgMakeSnapshot(){return {type:'gvgSnapshot',started:multi.started,challenge:'gun',startedAt:multi.startedAt,winner:multi.winner,players:[...multi.players.values()].map(gvgPublicPlayer)};}
+function gvgNormalizeDir(yaw,pitch){const cp=Math.cos(pitch);return{x:Math.sin(yaw)*cp,y:Math.sin(pitch),z:Math.cos(yaw)*cp};}
+function gvgRayObstacle(o,ox,oz,dx,dz,maxD){const vx=o.x-ox,vz=o.z-oz;const t=vx*dx+vz*dz;if(t<=0||t>maxD)return false;const px=ox+dx*t,pz=oz+dz*t;return Math.abs(px-o.x)<=o.w/2 && Math.abs(pz-o.z)<=o.d/2;}
+function gvgBlocked(ox,oz,dx,dz,maxD){for(const o of gvg.obstacles){if(gvgRayObstacle(o,ox,oz,dx,dz,maxD))return true;}return false;}
+function gvgDoShoot(shooter,target){
+  if(!shooter?.gvg||shooter.gvg.dead)return; const g=shooter.gvg,now=Date.now(); if(g.reloadUntil>now)return;
+  if(g.ammo<=0){g.reloadUntil=now+1200;return;} g.ammo--;
+  let best=null,bestT=9999;const dir=gvgNormalizeDir(g.yaw,g.pitch);
+  for(const p of multi.players.values()){if(p.id===shooter.id||!p.gvg||p.gvg.dead)continue;const q=p.gvg;const vx=q.x-g.x,vz=q.z-g.z;const t=vx*dir.x+vz*dir.z;if(t<0||t>34||t>=bestT)continue;const lateral=Math.abs(vx*dir.z-vz*dir.x);if(lateral<0.9&&!gvgBlocked(g.x,g.z,dir.x,dir.z,t)){best=p;bestT=t;}}
+  if(best){const q=best.gvg;const damageShield=Math.min(q.shield,35);q.shield-=damageShield;let left=35-damageShield;q.health=Math.max(0,q.health-left);if(q.health<=0){q.dead=true;shooter.kills=(shooter.kills||0)+1;shooter.score=(shooter.score||0)+100;setTimeout(()=>{if(multi.isHost&&multi.started&&multi.challenge==='gun'&&multi.players.has(best.id)){const s=gvgSpawnPoint();Object.assign(q,{x:s.x,z:s.z,shield:100,health:100,ammo:12,reloadUntil:0,dead:false,yaw:Math.random()*Math.PI*2,pitch:0});}},1400);}}
+  if(g.ammo<=0)g.reloadUntil=now+1200;
+}
+function gvgMoveBlocked(nx,nz){for(const o of gvg.obstacles){const px=Math.abs(nx-o.x),pz=Math.abs(nz-o.z);if(px<o.w/2+.65&&pz<o.d/2+.65)return true;}return false;}
+function gvgHostUpdate(dt){
+  if(!multi.started||multi.challenge!=='gun')return;
+  const now=Date.now();const speed=6.5;
+  const hostPlayer=multi.peer&&multi.players.get(multi.peer.id);
+  if(hostPlayer){ const k=gvgInputKeys(); gvg.input.f=k.f; gvg.input.r=k.r; hostPlayer._gvgInput={f:k.f,r:k.r,yaw:gvg.input.yaw,pitch:gvg.input.pitch,shoot:gvg.input.shoot,reload:gvg.input.reload}; }
+  for(const p of multi.players.values()){
+    if(!p.gvg)continue;const g=p.gvg;if(g.dead)continue;const inp=p._gvgInput||{f:0,r:0,yaw:g.yaw,pitch:0,shoot:false,reload:false};g.yaw=inp.yaw;g.pitch=inp.pitch;let fx=Math.sin(g.yaw),fz=Math.cos(g.yaw),rx=Math.cos(g.yaw),rz=-Math.sin(g.yaw);let mx=fx*(inp.f||0)+rx*(inp.r||0),mz=fz*(inp.f||0)+rz*(inp.r||0);const len=Math.hypot(mx,mz)||1;if(Math.hypot(mx,mz)>1){mx/=len;mz/=len;}const nx=Math.max(-19,Math.min(19,g.x+mx*speed*dt)),nz=Math.max(-13,Math.min(13,g.z+mz*speed*dt));if(!gvgMoveBlocked(nx,g.z))g.x=nx;if(!gvgMoveBlocked(g.x,nz))g.z=nz;if(inp.reload&&g.ammo<g.mag&&g.reloadUntil<=now)g.reloadUntil=now+1200;if(g.reloadUntil&&g.reloadUntil<=now&&g.ammo<g.mag)g.ammo=g.mag;if(inp.shoot&&(now-(p._lastShot||0)>180)){p._lastShot=now;gvgDoShoot(p);}}
+  const winner=[...multi.players.values()].find(p=>(p.kills||0)>=7);if(winner)multi.winner=winner.id;
+  if(!multi.winner){multiBroadcastGvg(false);}else multiBroadcastGvg(true);
+}
+function multiBroadcastGvg(force){if(!multi.isHost)return;const now=Date.now();if(!force&&now-(multi.gvgLastBroadcast||0)<66)return;multi.gvgLastBroadcast=now;const s=gvgMakeSnapshot();multiSendAll(s);gvgApplySnapshot(s);}
+function gvgApplySnapshot(s){if(!s||s.challenge!=='gun')return;gvgShowPanel(true);multi.started=!!s.started;multi.challenge='gun';multi.startedAt=s.startedAt||multi.startedAt;multi.winner=s.winner||null;(s.players||[]).forEach(q=>{const p=multi.players.get(q.id)||{id:q.id,name:q.name};p.name=q.name;p.gvg=q; p.score=q.score||0;p.kills=q.kills||0;p.x=q.x;p.y=q.z;multi.players.set(q.id,p);});multiRenderLobbyList();multiRenderHud();gvgUpdateHud();gvgUpdateRemoteMeshes();if(multi.winner)multiShowResult(multi.winner);}
+function gvgClientSendInput(){if(!multi.hostConn?.open||multi.isHost)return;const m=gvg.input;const now=Date.now();if(now-gvg.lastSend<50)return;gvg.lastSend=now;multiSend(multi.hostConn,{type:'gvgInput',f:m.f,r:m.r,yaw:m.yaw,pitch:m.pitch,shoot:m.shoot,reload:m.reload});m.shoot=false;m.reload=false;}
+
 function multiHostUpdate(dt){
+  if(multi.challenge==='gun'){ gvgHostUpdate(dt); return; }
   if(!multi.started||multi.winner)return;
   const now=Date.now();
 
@@ -2928,12 +2999,13 @@ function multiHostCrown(dt){
   else multi.crown.carrier=null;
 }
 function multiBroadcastSnapshot(force){
-  if(!multi.isHost)return;const n=Date.now();if(!force&&n-multi.lastBroadcast<33)return;multi.lastBroadcast=n;
+  if(!multi.isHost)return;const n=Date.now();if(!force&&n-multi.lastBroadcast<80)return;multi.lastBroadcast=n;
   const state={type:'snapshot',started:multi.started,challenge:multi.challenge,startedAt:multi.startedAt,winner:multi.winner,taggerId:multi.taggerId,crown:multi.crown,players:[...multi.players.values()].map(multiPublicPlayer),foods:multi.foods,powerups:multi.powerups};
   multiSendAll(state);multiApplySnapshot(state);
 }
 function multiApplySnapshot(s){
-  multi.started=!!s.started;multi.challenge=s.challenge;multi.startedAt=s.startedAt||0;multi.winner=s.winner||null;multi.taggerId=s.taggerId||null;
+  if(s?.type==='gvgSnapshot'){gvgApplySnapshot(s);return;}
+  multi.started=!!s.started;multi.challenge=s.challenge;multi.startedAt=s.startedAt||0;gvgShowPanel(multi.challenge==='gun');multi.winner=s.winner||null;multi.taggerId=s.taggerId||null;
   multi.foods=Array.isArray(s.foods)?s.foods:[];multi.powerups=Array.isArray(s.powerups)?s.powerups:[];multi.crown=s.crown||multi.crown;
   const seen=new Set();
   (s.players||[]).forEach(q=>{seen.add(q.id);const local=q.id===multi.peer?.id;const old=multi.players.get(q.id)||{};multi.players.set(q.id,{...old,...q,isLocal:local});});
@@ -2959,13 +3031,17 @@ function multiHostHandle(conn,msg){
   }
   if(msg.type==='input'){
     const p=multi.players.get(conn.peer);if(!p)return;p._input={x:Math.max(-1,Math.min(1,Number(msg.x)||0)),y:Math.max(-1,Math.min(1,Number(msg.y)||0))};
+    return;
+  }
+  if(msg.type==='gvgInput'){
+    const p=multi.players.get(conn.peer);if(!p)return;p._gvgInput={f:Math.max(-1,Math.min(1,Number(msg.f)||0)),r:Math.max(-1,Math.min(1,Number(msg.r)||0)),yaw:Number(msg.yaw)||0,pitch:Number(msg.pitch)||0,shoot:!!msg.shoot,reload:!!msg.reload};return;
   }
 }
 function multiSendSnapshotTo(conn){
   multiSend(conn,{type:'snapshot',started:multi.started,challenge:multi.challenge,startedAt:multi.startedAt,winner:multi.winner,taggerId:multi.taggerId,crown:multi.crown,players:[...multi.players.values()].map(multiPublicPlayer),foods:multi.foods,powerups:multi.powerups});
 }
 function multiAttachConnListeners(conn){
-  conn.on('data',msg=>{if(multi.isHost)multiHostHandle(conn,msg);else if(msg?.type==='snapshot')multiApplySnapshot(msg);else if(msg?.type==='reject')multiSetStatus(msg.reason||'Unable to join.');});
+  conn.on('data',msg=>{if(multi.isHost)multiHostHandle(conn,msg);else if(msg?.type==='snapshot')multiApplySnapshot(msg);else if(msg?.type==='gvgSnapshot')gvgApplySnapshot(msg);else if(msg?.type==='reject')multiSetStatus(msg.reason||'Unable to join.');});
   conn.on('close',()=>{if(multi.isHost){multiRemovePlayer(conn.peer);multi.conns.delete(conn.peer);if(multi.taggerId===conn.peer)multi.taggerId=null;multiBroadcastSnapshot(true);multiSetStatus('A player left the lobby.');}});
   conn.on('error',()=>{});
 }
@@ -3006,6 +3082,7 @@ function multiLocalInput(){
   const len=Math.hypot(x,y);if(len>1){x/=len;y/=len;}return{x,y};
 }
 function multiClientUpdate(){
+  if(multi.challenge==='gun'){gvgClientSendInput();return;}
   if(!multi.peer||multi.isHost||!multi.hostConn||!multi.hostConn.open)return;
   const input=multiLocalInput();
   const me=multi.players.get(multi.peer.id);
@@ -3025,8 +3102,9 @@ function multiClientUpdate(){
 function multiGameLoop(t){
   const now=t||performance.now();if(!multi.lastFrame)multi.lastFrame=now;const dt=Math.min(.05,(now-multi.lastFrame)/1000);multi.lastFrame=now;
   if(multi.isHost)multiHostUpdate(dt);else multiClientUpdate();
-  if(multi.isHost)multiBroadcastSnapshot(false);
-  multiDraw();multi.anim=requestAnimationFrame(multiGameLoop);
+  if(multi.isHost && multi.challenge!=='gun')multiBroadcastSnapshot(false);
+  if(multi.challenge!=='gun')multiDraw();
+  multi.anim=requestAnimationFrame(multiGameLoop);
 }
 function multiDraw(){
   const c=multiCanvas(),ctx=multiCtx();if(!c||!ctx)return;const d=Math.min(2,window.devicePixelRatio||1),cw=c.width/d,ch=c.height/d;ctx.clearRect(0,0,c.width,c.height);ctx.save();ctx.scale(d,d);
@@ -3041,14 +3119,19 @@ function multiDraw(){
   ctx.fillStyle='rgba(255,253,249,.88)';ctx.fillRect(cw-150,14,136,92);ctx.strokeStyle='rgba(124,107,168,.24)';ctx.strokeRect(cw-150,14,136,92);ctx.fillStyle='#3D3450';ctx.font='700 11px Quicksand,sans-serif';ctx.textAlign='left';ctx.fillText('PLAYERS',cw-140,31);let yy=48;for(const p of [...multi.players.values()].sort((a,b)=>b.score-a.score).slice(0,5)){ctx.fillText((p.id===multi.peer?.id?'• ':'')+p.name.slice(0,13),cw-140,yy);ctx.font='700 10px JetBrains Mono,monospace';ctx.textAlign='right';ctx.fillText(String(Math.floor(p.score)),cw-22,yy);ctx.font='700 11px Quicksand,sans-serif';ctx.textAlign='left';yy+=13;}ctx.restore();
 }
 function multiRenderHud(){
-  const label=document.getElementById('multiChallengeLabel'),count=document.getElementById('multiChallengeCount');if(!multi.started||!multi.challenge){label.textContent='Lobby not started';count.textContent=multi.isHost?'Choose a challenge':'Waiting for host…';return;}label.textContent=MULTI_CHALLENGES[multi.challenge]?.label||'Challenge';const me=multi.players.get(multi.peer?.id);if(!me){count.textContent='Connecting…';return;}const pr=multiProgress(me);if(multi.challenge==='giant')count.textContent=pr.value.toFixed(1)+'× / '+pr.target+'×';else if(multi.challenge==='crown'||multi.challenge==='survival')count.textContent=Math.floor(pr.value)+' / '+pr.target+'s';else count.textContent=Math.floor(pr.value)+' / '+pr.target;}
-function multiRenderLobbyList(){
-  const list=document.getElementById('multiPlayerList');if(list){list.innerHTML='';[...multi.players.values()].forEach(p=>{const r=document.createElement('div');r.className='multi-player-row';r.innerHTML='<strong>'+escapeHtml(p.name)+'</strong><span>'+(p.id===multi.peer?.id?'You':'Player')+(p.id===multi.peer?.id&&multi.isHost?' • Host':'')+'</span>';list.appendChild(r);});}
+  const label=document.getElementById('multiChallengeLabel'),count=document.getElementById('multiChallengeCount');gvgShowPanel(multi.challenge==='gun');if(!multi.started||!multi.challenge){label.textContent='Lobby not started';count.textContent=multi.isHost?'Choose a challenge':'Waiting for host…';return;}label.textContent=MULTI_CHALLENGES[multi.challenge]?.label||'Challenge';const me=multi.players.get(multi.peer?.id);if(!me){count.textContent='Connecting…';return;}const pr=multiProgress(me);if(multi.challenge==='giant')count.textContent=pr.value.toFixed(1)+'× / '+pr.target+'×';else if(multi.challenge==='crown'||multi.challenge==='survival')count.textContent=Math.floor(pr.value)+' / '+pr.target+'s';else count.textContent=Math.floor(pr.value)+' / '+pr.target;}
+function multiRenderLobbyList(force=false){
+  const now=performance.now();
+  const ids=[...multi.players.values()].map(p=>p.id+':'+p.name).sort().join('|');
+  const list=document.getElementById('multiPlayerList');
+  if(list&&(force||ids!==multi.listKey)){multi.listKey=ids;list.innerHTML='';[...multi.players.values()].forEach(p=>{const r=document.createElement('div');r.className='multi-player-row';r.innerHTML='<strong>'+escapeHtml(p.name)+'</strong><span>'+(p.id===multi.peer?.id?'You':'Player')+(p.id===multi.peer?.id&&multi.isHost?' • Host':'')+'</span>';list.appendChild(r);});}
+  if(now-multi.uiStamp<250&&!force)return; multi.uiStamp=now;
   const lb=document.getElementById('multiLeaderboard');if(lb){lb.innerHTML='';[...multi.players.values()].sort((a,b)=>b.score-a.score).slice(0,8).forEach((p,i)=>{const r=document.createElement('div');r.className='multi-lb-row '+(p.id===multi.peer?.id?'me':'');r.innerHTML='<div class="multi-lb-rank">#'+(i+1)+'</div><div class="multi-lb-name">'+escapeHtml(p.name)+'</div><div class="multi-lb-score">'+Math.floor(p.score)+' pts · '+(p.kills||0)+' K</div>';lb.appendChild(r);});}
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function multiShowResult(id){const p=multi.players.get(id);if(!p)return;document.getElementById('multiResultTitle').textContent=id===multi.peer?.id?'🏆 YOU WIN!':'🏁 '+p.name+' wins!';document.getElementById('multiResultText').textContent=MULTI_CHALLENGES[multi.challenge]?.desc||'Challenge complete.';document.getElementById('multiResult').classList.add('show');multiRenderHud();}
 function multiBackToLobby(){
+  gvgShowPanel(false);
   if(multi.isHost){
     multi.started=false; multi.running=false; multi.winner=null; multi.challenge=null;
     multi.foods=[]; multi.powerups=[]; multi.taggerId=null;
@@ -3071,8 +3154,52 @@ function multiLeave(reset=true){
   if(multi.peer){try{multi.peer.destroy();}catch(e){}}multi.peer=null;
   if(multi.anim){cancelAnimationFrame(multi.anim);multi.anim=null;}
   multi.players.clear();multi.foods=[];multi.powerups=[];multi.started=false;multi.running=false;multi.isHost=false;multi.hostId=null;multi.winner=null;multi.challenge=null;multi.taggerId=null;multi.crown={x:1300,y:900,r:44,carrier:null};multi.lastFrame=0;multi.lastInputSent=0;
+  gvgShowPanel(false);gvg.input.shoot=false;gvg.input.reload=false;
   document.getElementById('multiLobbyCode')?.classList.remove('show');document.getElementById('multiHostControls')?.classList.remove('show');document.getElementById('multiResult')?.classList.remove('show');multiRenderLobbyList();multiRenderHud();if(reset)multiSetStatus('You left the lobby.');
 }
+
+/* ============================================================
+   GOOB VS GOOB — 3D LASER TAG
+   ============================================================ */
+async function gvgInit3D(){
+  if(gvg.loaded)return;
+  gvg.canvas=document.getElementById('gvgCanvas'); if(!gvg.canvas||!window.BABYLON)return;
+  gvg.engine=new BABYLON.Engine(gvg.canvas,true,{preserveDrawingBuffer:false,stencil:true,antialias:true});
+  gvg.scene=new BABYLON.Scene(gvg.engine);gvg.scene.clearColor=new BABYLON.Color4(.025,.02,.04,1);
+  gvg.camera=new BABYLON.UniversalCamera('gvgCam',new BABYLON.Vector3(0,2.8,-8),gvg.scene);gvg.camera.fov=.95;gvg.camera.minZ=.05;gvg.camera.maxZ=200;gvg.camera.attachControl(gvg.canvas,true);gvg.camera.inputs.clear();
+  const glow=new BABYLON.GlowLayer('glow',gvg.scene);glow.intensity=.25;
+  const hemi=new BABYLON.HemisphericLight('hemi',new BABYLON.Vector3(0,1,0),gvg.scene);hemi.intensity=.8;
+  const fill=new BABYLON.PointLight('fill',new BABYLON.Vector3(0,6,0),gvg.scene);fill.intensity=35;fill.diffuse=new BABYLON.Color3(.55,.45,1);
+  gvgMakeMap();
+  try{
+    const gr=await BABYLON.SceneLoader.ImportMeshAsync('', 'assets/', 'gubby.glb', gvg.scene);
+    gvg.assets.gooby=gr.meshes.filter(m=>m!==gvg.scene.meshes[0]); const root=new BABYLON.TransformNode('localGooby',gvg.scene);for(const m of gvg.assets.gooby){if(m.parent===null)m.parent=root;}root.scaling=new BABYLON.Vector3(1.15,1.15,1.15);root.position.y=.9;gvg.localRoot=root;
+    const gun=await BABYLON.SceneLoader.ImportMeshAsync('', 'assets/', 'low_poly_tactical_pistol.glb', gvg.scene);gvg.assets.gun=gun.meshes.filter(m=>m!==gvg.scene.meshes[0]);const gunRoot=new BABYLON.TransformNode('gun',gvg.scene);for(const m of gvg.assets.gun){if(m.parent===null)m.parent=gunRoot;}gunRoot.parent=gvg.camera;gunRoot.position=new BABYLON.Vector3(.55,-.42,1.05);gunRoot.scaling=new BABYLON.Vector3(.65,.65,.65);gunRoot.rotation=new BABYLON.Vector3(0,Math.PI,0);gvg.gunRoot=gunRoot;
+  }catch(e){console.warn('3D model load failed',e);}
+  gvg.loaded=true;gvg.engine.runRenderLoop(()=>{if(gvg.rendering){gvg3DFrame();gvg.scene.render();}});window.addEventListener('resize',()=>gvg.engine?.resize());
+  gvgInstallPointer();
+}
+function gvgMakeMap(){
+  const mat=(name,c)=>{const m=new BABYLON.StandardMaterial(name,gvg.scene);m.diffuseColor=BABYLON.Color3.FromHexString(c);m.specularColor=new BABYLON.Color3(.1,.1,.1);return m;};
+  const floor=BABYLON.MeshBuilder.CreateGround('floor',{width:42,height:30},gvg.scene);floor.material=mat('floor','#28233a');
+  const wallMat=mat('wall','#51466d'); const glowMat=mat('stripe','#6b5ee7');
+  const walls=[[-21,1.5,0,1,3,30],[21,1.5,0,1,3,30],[0,1.5,-15,42,3,1],[0,1.5,15,42,3,1],[-8,1.5,0,2,3,10],[8,1.5,0,2,3,10],[0,1.5,-5,12,3,2],[0,1.5,5,12,3,2]];
+  gvg.obstacles=walls.map(w=>({x:w[0],z:w[2],w:Math.max(.8,w[3]),d:Math.max(.8,w[5])}));
+  walls.forEach((w,i)=>{const b=BABYLON.MeshBuilder.CreateBox('wall'+i,{width:w[3],height:w[4],depth:w[5]},gvg.scene);b.position=new BABYLON.Vector3(w[0],w[1],w[2]);b.material=wallMat;const s=BABYLON.MeshBuilder.CreateBox('stripe'+i,{width:w[3]*.9,height:.08,depth:Math.max(.08,w[5]*.9)},gvg.scene);s.position=new BABYLON.Vector3(w[0],2.9,w[2]);s.material=glowMat;});
+  for(let x=-18;x<=18;x+=6)for(let z=-12;z<=12;z+=6){const l=BABYLON.MeshBuilder.CreateCylinder('lamp',{diameter:.25,height:0.05,tessellation:16},gvg.scene);l.position=new BABYLON.Vector3(x,2.96,z);l.material=glowMat;}
+}
+function gvgShowPanel(show){const p=document.getElementById('goobVsGoobPanel'),c=document.getElementById('multiCanvas');p?.classList.toggle('show',show);if(c)c.style.display=show?'none':'block';if(show){gvgInit3D();gvg.rendering=true;}else gvg.rendering=false;}
+function gvgInstallPointer(){const c=gvg.canvas;if(!c)return;c.addEventListener('click',()=>{c.requestPointerLock?.();});document.addEventListener('mousemove',e=>{if(document.pointerLockElement!==c)return;gvg.input.yaw+=e.movementX*.0025;gvg.input.pitch=Math.max(-1.0,Math.min(.75,gvg.input.pitch-e.movementY*.002));});c.addEventListener('mousedown',e=>{if(e.button===0){gvg.input.shoot=true;}});document.addEventListener('mouseup',e=>{if(e.button===0)gvg.input.shoot=false;});document.addEventListener('keydown',e=>{if(e.key==='r'||e.key==='R')gvg.input.reload=true;});
+}
+function gvgInputKeys(){let f=0,r=0;const k=multi.keys;if(k.w||k.W||k.ArrowUp)f+=1;if(k.s||k.S||k.ArrowDown)f-=1;if(k.a||k.A||k.ArrowLeft)r-=1;if(k.d||k.D||k.ArrowRight)r+=1;return{f,r};}
+function gvgUpdateHud(){const me=multi.players.get(multi.peer?.id);if(!me?.gvg)return;const q=me.gvg;document.getElementById('gvgShield').textContent=Math.max(0,Math.round(q.shield));document.getElementById('gvgHealth').textContent=Math.max(0,Math.round(q.health));document.getElementById('gvgAmmo').textContent=q.ammo;document.getElementById('gvgMag').textContent=q.mag;document.getElementById('gvgKills').textContent=q.kills||0;const re=document.getElementById('gvgReload');const show=q.reloadUntil>Date.now();re.classList.toggle('show',show);document.getElementById('gvgStatus').textContent=show?'Reloading…':(q.dead?'Tagged out — respawning…':'Laser tag! First to 7 eliminations.');}
+function gvgUpdateRemoteMeshes(){
+  if(!gvg.scene)return;const localId=multi.peer?.id;
+  for(const p of multi.players.values()){
+    if(p.id===localId||!p.gvg)continue;let obj=gvg.remote.get(p.id);if(!obj){const root=new BABYLON.TransformNode('remote_'+p.id,gvg.scene);const src=gvg.assets.gooby||[];const copies=src.map(m=>m.clone('r_'+p.id+'_'+m.name,root,true));obj={root,meshes:copies};gvg.remote.set(p.id,obj);}obj.root.position=new BABYLON.Vector3(p.gvg.x,.9,p.gvg.z);obj.root.rotation.y=p.gvg.yaw;obj.root.setEnabled(!p.gvg.dead);}
+  [...gvg.remote.keys()].forEach(id=>{if(!multi.players.has(id)){gvg.remote.get(id)?.root.dispose();gvg.remote.delete(id);}});
+}
+function gvg3DFrame(){const kr=gvgInputKeys();gvg.input.f=kr.f;gvg.input.r=kr.r;const me=multi.players.get(multi.peer?.id);if(me?.gvg){gvg.camera.position.x=me.gvg.x;gvg.camera.position.y=2.8;gvg.camera.position.z=me.gvg.z;gvg.camera.rotation.y=me.gvg.yaw;gvg.camera.rotation.x=me.gvg.pitch; if(gvg.localRoot){gvg.localRoot.position=new BABYLON.Vector3(me.gvg.x,.9,me.gvg.z);gvg.localRoot.rotation.y=me.gvg.yaw;} if(gvg.gunRoot){gvg.gunRoot.position.z=1.05;gvg.gunRoot.position.x=.55;} }gvgUpdateHud();gvgUpdateRemoteMeshes();}
 
 /* ============================================================
    TABS
@@ -3086,7 +3213,7 @@ function switchTab(tab){
   document.querySelectorAll('.tab-panel').forEach(p=>{
     p.classList.toggle('active', p.id==='tab-'+tab);
   });
-  if(tab==='multiplayer'){ multiResize(); }
+  if(tab==='multiplayer'){ multiResize(); if(multi.challenge==='gun')gvgShowPanel(true); }
   if(tab==='petzone' && document.getElementById('pane-meshscan').classList.contains('active')){
     sizeMeshCanvas();
     if(!meshAnim) meshAnim = requestAnimationFrame(meshRenderLoop);
